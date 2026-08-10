@@ -7,26 +7,171 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/* ═══════════════════════════════════════════════════
+   SUPER ADMIN
+   ═══════════════════════════════════════════════════ */
+
+model SuperAdmin {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String
+  isActive      Boolean  @default(true)
+  lastLogin     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/* ═══════════════════════════════════════════════════
+   PLANS & BILLING
+   ═══════════════════════════════════════════════════ */
+
+model Plan {
+  id          String   @id @default(cuid())
+  name        String   // Starter, Professional, Enterprise
+  slug        String   @unique
+  priceMonthly Float    // in TTD
+  priceYearly Float?   // in TTD (optional annual discount)
+  maxAssets   Int
+  maxUsers    Int
+  maxLocations Int
+  features    String   // JSON array of feature strings
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id              String   @id @default(cuid())
+  tenantId        String   @unique
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  planId          String
+  plan            Plan     @relation(fields: [planId], references: [id])
+  status          String   @default("active") // active, past_due, cancelled, trial
+  currentPeriodStart DateTime @default(now())
+  currentPeriodEnd   DateTime
+  billingCycle    String   @default("monthly") // monthly, yearly
+  nextBillingDate DateTime
+  cancelledAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  payments         Payment[]
+  invoices         Invoice[]
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  subscriptionId  String
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  amount          Float
+  currency        String   @default("TTD")
+  method          String   @default("manual") // manual, bank_transfer, credit_card, online
+  status          String   @default("pending") // pending, completed, failed, refunded
+  reference        String?  // bank reference / receipt number
+  paidAt          DateTime?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Invoice {
+  id              String   @id @default(cuid())
+  invoiceNumber   String   @unique
+  subscriptionId  String
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  amount          Float
+  currency        String   @default("TTD")
+  status          String   @default("pending") // pending, paid, overdue, cancelled
+  issuedAt        DateTime @default(now())
+  dueAt           DateTime
+  paidAt          DateTime?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+/* ═══════════════════════════════════════════════════
+   ACCOUNTING (General Ledger per T&T rules)
+   ═══════════════════════════════════════════════════ */
+
+model LedgerAccount {
+  id          String   @id @default(cuid())
+  code        String   // e.g. 1000, 1200, 2000 per T&T chart of accounts
+  name        String   // e.g. "Cash at Bank", "Accounts Receivable"
+  accountType String   // asset, liability, equity, revenue, expense
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entries     LedgerEntry[]
+}
+
+model JournalEntry {
+  id          String   @id @default(cuid())
+  number      String   @unique // e.g. JE-2026-001
+  description String
+  date        DateTime
+  status      String   @default("draft") // draft, posted, reversed
+  tenantId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entries     LedgerEntry[]
+}
+
+model LedgerEntry {
+  id              String   @id @default(cuid())
+  journalEntryId  String
+  journalEntry    JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  ledgerAccountId String
+  ledgerAccount   LedgerAccount @relation(fields: [ledgerAccountId], references: [id])
+  debit           Float    @default(0)
+  credit          Float    @default(0)
+  description     String?
+  createdAt       DateTime @default(now())
+}
+
+/* ═══════════════════════════════════════════════════
+   TENANT (institution) — the "apartment"
+   ═══════════════════════════════════════════════════ */
+
 model Tenant {
   id          String   @id @default(cuid())
   name        String
   slug        String   @unique
   type        String   @default("private") // government, private, education, insurance, credit_union
   country     String   @default("Trinidad and Tobago")
- currency    String   @default("TTD")
- logo        String?
-  plan        String   @default("starter") // starter, professional, enterprise
-  maxAssets   Int      @default(500)
- maxUsers    Int      @default(10)
- isActive    Boolean  @default(true)
+  currency    String   @default("TTD")
+  logo        String?
+  contactName String?
+  contactEmail String?
+  contactPhone String?
+  address     String?
+  isActive    Boolean  @default(true)
+  activatedAt DateTime?
+  deactivatedAt DateTime?
+  deactivationReason String?
+  notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  subscription Subscription?
   users       User[]
   assets      Asset[]
   categories  Category[]
   locations   Location[]
   inventorySessions InventorySession[]
+  payments    Payment[]
+  invoices    Invoice[]
 }
 
 model User {
@@ -53,7 +198,7 @@ model Category {
   name        String
   code        String
   color       String   @default("#6366f1")
- icon        String   @default("Package")
+  icon        String   @default("Package")
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
@@ -87,7 +232,7 @@ model Location {
 model Asset {
   id              String   @id @default(cuid())
   qrCode          String   @unique
-  tagNumber       String
+   tagNumber       String
   name            String
   description     String?
   serialNumber    String?
@@ -97,8 +242,8 @@ model Asset {
   purchasePrice   Float?
   currentValue    Float?
   warrantyExpiry  DateTime?
-  status          String   @default("active") // active, inactive, disposed, maintenance, lost, stolen
-  condition       String   @default("good") // new, good, fair, poor, broken
+  status          String   @default("active")
+  condition       String   @default("good")
   assignedTo      String?
   notes           String?
   photo           String?
@@ -119,7 +264,7 @@ model Asset {
 
 model AuditLog {
   id          String   @id @default(cuid())
-  action      String   // created, updated, deleted, status_changed, location_changed, assigned, scanned
+  action      String
   details     String?
   assetId     String?
   asset       Asset?   @relation(fields: [assetId], references: [id], onDelete: SetNull)
@@ -132,7 +277,7 @@ model AuditLog {
 model InventorySession {
   id          String   @id @default(cuid())
   name        String
-  status      String   @default("in_progress") // in_progress, completed, cancelled
+  status      String   @default("in_progress")
   locationId  String?
   location    Location? @relation(fields: [locationId], references: [id])
   notes       String?
@@ -159,7 +304,7 @@ model InventoryItem {
   asset             Asset?   @relation(fields: [assetId], references: [id])
   sessionId         String
   session           InventorySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  discrepancyType   String?   // missing, extra, wrong_location, status_mismatch
+  discrepancyType   String?
   discrepancyNote   String?
   scannedAt         DateTime @default(now())
   synced            Boolean  @default(false)
@@ -167,13 +312,13 @@ model InventoryItem {
 
 model SyncQueue {
   id          String   @id @default(cuid())
-  operation   String   // create, update, delete
-  entity      String   // asset, inventory_item, audit_log
+  operation   String
+  entity      String
   entityId    String?
-  payload     String   // JSON payload
-  status      String   @default("pending") // pending, synced, failed
+  payload     String
+  status      String   @default("pending")
   attempts    Int      @default(0)
- error       String?
+  error       String?
   tenantId    String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
