@@ -1,35 +1,27 @@
 # Zeitgeist AssetHub — Work Log
 
 ---
-Task ID: 1
+Task ID: 2
 Agent: Main
-Task: Build complete multi-tenant asset management SaaS system
+Task: Add marketing portal, super admin dashboard, billing & accounting
 
 Work Log:
-- Initialized fullstack dev environment (Next.js 16 + Prisma + SQLite)
-- Installed qrcode and html5-qrcode packages
-- Designed and pushed comprehensive Prisma schema (8 models: Tenant, User, Category, Location, Asset, AuditLog, InventorySession, InventoryItem, SyncQueue)
-- Built 14 API routes (auth, assets, categories, locations, inventory, scanning, reports, sync, QR, seed)
-- Built Zustand store for SPA state management
-- Built API client with offline queue support
-- Built Login/Register auth views
-- Built collapsible sidebar with dark theme and mobile drawer
-- Built Dashboard view with 4 stat cards, donut chart, bar chart, location list, activity timeline
-- Built Assets view with CRUD, search, filters, pagination, QR code generation
-- Built Scan QR view with camera integration (html5-qrcode) and manual input
-- Built Inventory sessions view with progress tracking
-- Built Reports view with 5 tabs (Overview, By Category, By Location, Discrepancies, Audit Trail)
-- Built Settings view (organization settings, plan info, danger zone)
-- Built Users view with role management
-- Seeded demo data (Port of Spain Municipal Corporation, 22 assets, 8 categories, 6 locations)
-- Fixed API response structure to match frontend expectations
-- All views verified working via browser automation
-- ESLint passes clean
+- Updated Prisma schema with 7 new models (SuperAdmin, Plan, Subscription, Payment, Invoice, LedgerAccount, JournalEntry, LedgerEntry)
+- Added contact fields to Tenant (contactName, contactEmail, contactPhone, address, activatedAt, deactivatedAt, deactivationReason)
+- Built 10 admin API routes (auth, tenants CRUD, tenant history, plans, billing, accounting, dashboard, seed, reseed, quick-seed)
+- Built full marketing portal landing page (10 sections: hero, trust bar, problem, features, how it works, pricing, FAQ, CTA, footer)
+- Built super admin dashboard with overview, tenants, plans, accounting, settings tabs
+- Built tenant detail view (patient-record style) with contact, subscription, asset stats, payment history, invoices, activity timeline
+- Added admin-api.ts client library
+- Updated store with super admin state, portal view type, tenant detail type
+- Changed default landing to portal (marketing page)
+- Created quick-seed route for reliable data seeding
+- All code lint-clean, pushed to GitHub
 
 Stage Summary:
-- Complete SaaS asset management system built and verified
-- Demo credentials: admin@demo.com / demo123, slug: pos-municipal-corp
-- Tech: Next.js 16, TypeScript, Tailwind CSS 4, shadcn/ui, Prisma/SQLite, recharts, html5-qrcode
-- Multi-tenant architecture with per-tenant data isolation
-- Offline sync queue with localStorage persistence
-- QR code generation and camera scanning support
+- Portal: 10-section marketing page with deep navy/teal/gold theme, framer-motion animations
+- Super Admin: admin@zeitgeist.co / super2024 — manages all tenants, billing, accounting
+- Plans: Starter TTD $499, Professional TTD $1,299, Enterprise TTD $2,999
+- Accounting: Chart of accounts, journal entries, trial balance per T&T rules
+- GitHub: https://github.com/comandomorillo2026/AssetHub
+- Demo: admin@demo.com / demo123, slug: pos-municipal-corp
