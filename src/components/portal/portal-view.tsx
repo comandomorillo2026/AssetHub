@@ -904,6 +904,14 @@ export default function PortalView() {
             <p className="text-xs text-white/20">
               © {new Date().getFullYear()} Zeitgeist Business Solution. All rights reserved.
             </p>
+            {/* Discreet admin access */}
+            <button
+              onClick={() => navigate('super-admin')}
+              className="mt-4 text-[10px] text-white/10 hover:text-white/30 transition-colors duration-500"
+              title="Super Admin"
+            >
+              ⚙
+            </button>
           </div>
         </div>
       </footer>
