@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  type        String   @default("private") // government, private, education, insurance, credit_union
+  country     String   @default("Trinidad and Tobago")
+ currency    String   @default("TTD")
+ logo        String?
+  plan        String   @default("starter") // starter, professional, enterprise
+  maxAssets   Int      @default(500)
+ maxUsers    Int      @default(10)
+ isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  assets      Asset[]
+  categories  Category[]
+  locations   Location[]
+  inventorySessions InventorySession[]
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String
+  passwordHash  String
+  name          String
+  role          String   @default("user") // admin, auditor, user
+  isActive      Boolean  @default(true)
+  lastLogin     DateTime?
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  auditLogs     AuditLog[]
+  inventorySessions InventorySession[]
+
+  @@unique([email, tenantId])
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  code        String
+  color       String   @default("#6366f1")
+ icon        String   @default("Package")
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assets      Asset[]
+
+  @@unique([name, tenantId])
+  @@unique([code, tenantId])
+}
+
+model Location {
+  id          String   @id @default(cuid())
+  name        String
+  code        String
+  address     String?
+  parentId    String?
+  parent      Location? @relation("LocationHierarchy", fields: [parentId], references: [id])
+  children    Location[] @relation("LocationHierarchy")
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assets              Asset[]
+  inventorySessions    InventorySession[]
+
+  @@unique([name, tenantId])
+}
+
+model Asset {
+  id              String   @id @default(cuid())
+  qrCode          String   @unique
+  tagNumber       String
+  name            String
+  description     String?
+  serialNumber    String?
+  brand           String?
+  model           String?
+  purchaseDate    DateTime?
+  purchasePrice   Float?
+  currentValue    Float?
+  warrantyExpiry  DateTime?
+  status          String   @default("active") // active, inactive, disposed, maintenance, lost, stolen
+  condition       String   @default("good") // new, good, fair, poor, broken
+  assignedTo      String?
+  notes           String?
+  photo           String?
+  categoryId      String?
+  category        Category? @relation(fields: [categoryId], references: [id])
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id])
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  auditLogs       AuditLog[]
+  inventoryItems  InventoryItem[]
+
+  @@unique([tagNumber, tenantId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String   // created, updated, deleted, status_changed, location_changed, assigned, scanned
+  details     String?
+  assetId     String?
+  asset       Asset?   @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tenantId    String?
+  createdAt   DateTime @default(now())
+}
+
+model InventorySession {
+  id          String   @id @default(cuid())
+  name        String
+  status      String   @default("in_progress") // in_progress, completed, cancelled
+  locationId  String?
+  location    Location? @relation(fields: [locationId], references: [id])
+  notes       String?
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  totalExpected Int   @default(0)
+  totalScanned  Int   @default(0)
+  totalMissing   Int   @default(0)
+  totalExtra    Int   @default(0)
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items       InventoryItem[]
+}
+
+model InventoryItem {
+  id                String   @id @default(cuid())
+  qrCode            String?
+  assetId           String?
+  asset             Asset?   @relation(fields: [assetId], references: [id])
+  sessionId         String
+  session           InventorySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  discrepancyType   String?   // missing, extra, wrong_location, status_mismatch
+  discrepancyNote   String?
+  scannedAt         DateTime @default(now())
+  synced            Boolean  @default(false)
+}
+
+model SyncQueue {
+  id          String   @id @default(cuid())
+  operation   String   // create, update, delete
+  entity      String   // asset, inventory_item, audit_log
+  entityId    String?
+  payload     String   // JSON payload
+  status      String   @default("pending") // pending, synced, failed
+  attempts    Int      @default(0)
+ error       String?
+  tenantId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

@@ -1,0 +1,874 @@
+   253→  }, [flashOn])
+   254→
+   255→  // Handle scan result
+   256→  const handleScanResult = useCallback(async (code: string) => {
+   257→    try {
+   258→      const data = await qrApi.resolve(code)
+   259→      const asset: Asset = data?.asset || data
+   260→      if (asset && asset.id) {
+   261→        setScannedAsset(asset)
+   262→        setShowAssetCard(true)
+   263→        toast.success('Asset found!')
+   264→
+   265→        // Auto-submit to active inventory session
+   266→        if (activeSession) {
+   267→          try {
+   268→            await inventoryApi.scan(activeSession.id, code)
+   269→            setScanCount((prev) => prev + 1)
+   270→          } catch (_e) {
+   271→            // silently fail for inventory scan
+   272→          }
+   273→        }
+   274→      } else {
+   275→        toast.error('Asset not registered')
+   276→      }
+   277→
+   278→      // Add to recent scans
+   279→      setRecentScans((prev) => {
+   280→        const entry: ScanResult = {
+   281→          qrCode: code,
+   282→          asset: asset?.id ? asset : null,
+   283→          timestamp: Date.now(),
+   284→        }
+   285→        return [entry, ...prev].slice(0, 5)
+   286→      })
+   287→    } catch (_e) {
+   288→      toast.error('Asset not registered')
+   289→      setRecentScans((prev) => {
+   290→        const entry: ScanResult = { qrCode: code, asset: null, timestamp: Date.now() }
+   291→        return [entry, ...prev].slice(0, 5)
+   292→      })
+   293→    }
+   294→  }, [activeSession])
+   295→
+   296→  // Manual submit
+   297→  const handleManualSubmit = useCallback(async () => {
+   298→    const code = manualCode.trim()
+   299→    if (!code) return
+   300→    setManualCode('')
+   301→    setProcessing(true)
+   302→    try {
+   303→      if (scannerRef.current) {
+   304→        await scannerRef.current.pause(true)
+   305→        setScanning(false)
+   306→      }
+   307→      await handleScanResult(code)
+   308→    } finally {
+   309→      setTimeout(async () => {
+   310→        try {
+   311→          if (scannerRef.current) await scannerRef.current.resume()
+   312→          setScanning(true)
+   313→        } catch (_e) {}
+   314→        setProcessing(false)
+   315→      }, 2000)
+   316→    }
+   317→  }, [manualCode, handleScanResult])
+   318→
+   319→  return (
+   320→    <div className="flex flex-col gap-4 p-4 md:p-6 max-w-2xl mx-auto w-full">
+   321→      {/* Header */}
+   322→      <motion.div {...fadeIn} className="flex items-center justify-between">
+   323→        <div className="flex items-center gap-2">
+   324→          <ScanLine className="h-5 w-5 text-primary" />
+   325→          <h2 className="text-lg font-semibold">QR Scanner</h2>
+   326→        </div>
+   327→        <Button
+   328→          variant="outline"
+   329→          size="sm"
+   330→          onClick={toggleFlash}
+   331→          className="gap-1.5"
+   332→        >
+   333→          {flashOn ? <ZapOff className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+   334→          {flashOn ? 'Flash Off' : 'Flash'}
+   335→        </Button>
+   336→      </motion.div>
+   337→
+   338→      {/* Camera Viewfinder */}
+   339→      <motion.div {...fadeIn} className="relative rounded-xl overflow-hidden bg-black aspect-[4/3]">
+   340→        <div id={SCANNER_ID} className="w-full h-full" />
+   341→        {/* Scanning line animation overlay */}
+   342→        {scanning && (
+   343→          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+   344→            <div className="relative w-[250px] h-[250px]">
+   345→              {/* Corner brackets */}
+   346→              <span className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-primary rounded-tl-lg" />
+   347→              <span className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-primary rounded-tr-lg" />
+   348→              <span className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-primary rounded-bl-lg" />
+   349→              <span className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-primary rounded-br-lg" />
+   350→              {/* Scanning line */}
+   351→              <motion.div
+   352→                className="absolute left-1 right-1 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent"
+   353→                initial={{ top: '0%' }}
+   354→                animate={{ top: ['0%', '100%', '0%'] }}
+   355→                transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+   356→              />
+   357→            </div>
+   358→          </div>
+   359→        )}
+   360→        {/* Not scanning indicator */}
+   361→        {!scanning && (
+   362→          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+   363→            <div className="flex flex-col items-center gap-2 text-white">
+   364→              <CheckCircle2 className="h-10 w-10 text-emerald-400" />
+   365→              <span className="text-sm font-medium">Scan captured</span>
+   366→            </div>
+   367→          </div>
+   368→        )}
+   369→      </motion.div>
+   370→
+   371→      {/* Active session indicator */}
+   372→      {activeSession && (
+   373→        <motion.div
+   374→          initial={{ opacity: 0, scale: 0.95 }}
+   375→          animate={{ opacity: 1, scale: 1 }}
+   376→          className="bg-primary/10 border border-primary/20 rounded-lg p-3 flex items-center justify-between"
+   377→        >
+   378→          <div className="flex items-center gap-2">
+   379→            <Play className="h-4 w-4 text-primary" />
+   380→            <span className="text-sm font-medium">{activeSession.name}</span>
+   381→          </div>
+   382→          <Badge variant="default" className="font-mono">
+   383→            {scanCount} / {activeSession.totalExpected} expected
+   384→          </Badge>
+   385→        </motion.div>
+   386→      )}
+   387→
+   388→      {/* Start session button if no active session */}
+   389→      {!activeSession && (
+   390→        <motion.div {...fadeIn}>
+   391→          <Button
+   392→            className="w-full gap-2"
+   393→            variant="outline"
+   394→            onClick={() => navigate('inventory')}
+   395→          >
+   396→            <Play className="h-4 w-4" />
+   397→            Start Inventory Session
+   398→          </Button>
+   399→        </motion.div>
+   400→      )}
+   401→
+   402→      {/* Manual input */}
+   403→      <motion.div {...fadeIn} className="flex gap-2">
+   404→        <Input
+   405→          placeholder="Enter QR code manually..."
+   406→          value={manualCode}
+   407→          onChange={(e) => setManualCode(e.target.value)}
+   408→          onKeyDown={(e) => e.key === 'Enter' && handleManualSubmit()}
+   409→          className="flex-1"
+   410→        />
+   411→        <Button onClick={handleManualSubmit} disabled={!manualCode.trim() || processing}>
+   412→          <Search className="h-4 w-4 mr-1.5" />
+   413→          Lookup
+   414→        </Button>
+   415→      </motion.div>
+   416→
+   417→      {/* Scanned Asset Card (Popup) */}
+   418→      <AnimatePresence>
+   419→        {showAssetCard && scannedAsset && (
+   420→          <motion.div
+   421→            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+   422→            animate={{ opacity: 1, y: 0, scale: 1 }}
+   423→            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+   424→            transition={{ duration: 0.3 }}
+   425→          >
+   426→            <Card className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20">
+   427→              <CardHeader className="pb-3">
+   428→                <div className="flex items-center justify-between">
+   429→                  <CardTitle className="text-base flex items-center gap-2">
+   430→                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+   431→                    {scannedAsset.name}
+   432→                  </CardTitle>
+   433→                  <Button
+   434→                    variant="ghost"
+   435→                    size="sm"
+   436→                    className="h-7 w-7 p-0"
+   437→                    onClick={() => setShowAssetCard(false)}
+   438→                  >
+   439→                    <XCircle className="h-4 w-4" />
+   440→                  </Button>
+   441→                </div>
+   442→                <CardDescription>Asset scanned successfully</CardDescription>
+   443→              </CardHeader>
+   444→              <CardContent>
+   445→                <div className="grid grid-cols-2 gap-3 text-sm">
+   446→                  <div className="flex items-center gap-1.5">
+   447→                    <QrCode className="h-3.5 w-3.5 text-muted-foreground" />
+   448→                    <span className="text-muted-foreground">Tag:</span>
+   449→                    <span className="font-medium">{scannedAsset.tagNumber}</span>
+   450→                  </div>
+   451→                  <div className="flex items-center gap-1.5">
+   452→                    <CircleDot className="h-3.5 w-3.5 text-muted-foreground" />
+   453→                    <span className="text-muted-foreground">Status:</span>
+   454→                    <Badge variant="secondary" className={assetStatusColor(scannedAsset.status)}>
+   455→                      {scannedAsset.status}
+   456→                    </Badge>
+   457→                  </div>
+   458→                  <div className="flex items-center gap-1.5">
+   459→                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+   460→                    <span className="text-muted-foreground">Location:</span>
+   461→                    <span className="font-medium">
+   462→                      {scannedAsset.location?.name || 'Unassigned'}
+   463→                    </span>
+   464→                  </div>
+   465→                  <div className="flex items-center gap-1.5">
+   466→                    <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+   467→                    <span className="text-muted-foreground">Condition:</span>
+   468→                    <span className={`font-medium ${conditionColor(scannedAsset.condition)}`}>
+   469→                      {scannedAsset.condition}
+   470→                    </span>
+   471→                  </div>
+   472→                </div>
+   473→              </CardContent>
+   474→            </Card>
+   475→          </motion.div>
+   476→        )}
+   477→      </AnimatePresence>
+   478→
+   479→      {/* Recent Scans */}
+   480→      {recentScans.length > 0 && (
+   481→        <motion.div {...fadeIn}>
+   482→          <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+   483→            <Clock className="h-3.5 w-3.5" />
+   484→            Recent Scans
+   485→          </h3>
+   486→          <div className="space-y-2 max-h-48 overflow-y-auto">
+   487→            {recentScans.map((scan, idx) => (
+   488→              <motion.div
+   489→                key={`${scan.qrCode}-${scan.timestamp}`}
+   490→                initial={{ opacity: 0, x: -10 }}
+   491→                animate={{ opacity: 1, x: 0 }}
+   492→                transition={{ delay: idx * 0.05 }}
+   493→                className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50 border text-sm"
+   494→              >
+   495→                <div className="flex items-center gap-2 min-w-0">
+   496→                  {scan.asset ? (
+   497→                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+   498→                  ) : (
+   499→                    <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+   500→                  )}
+   501→                  <span className="font-mono text-xs truncate">
+   502→                    {scan.qrCode}
+   503→                  </span>
+   504→                </div>
+   505→                <span className="text-xs text-muted-foreground shrink-0 ml-2">
+   506→                  {scan.asset?.name || 'Unknown'}
+   507→                </span>
+   508→              </motion.div>
+   509→            ))}
+   510→          </div>
+   511→        </motion.div>
+   512→      )}
+   513→    </div>
+   514→  )
+   515→}
+   516→
+   517→/* ──────────────────────────────────────────────
+   518→   INVENTORY LIST VIEW
+   519→   ────────────────────────────────────────────── */
+   520→
+   521→type SessionStatusFilter = 'all' | 'in_progress' | 'completed' | 'cancelled'
+   522→
+   523→function InventoryListView() {
+   524→  const { navigate, setSelectedInventoryId } = useAppStore()
+   525→  const [sessions, setSessions] = useState<InventorySession[]>([])
+   526→  const [loading, setLoading] = useState(true)
+   527→  const [filter, setFilter] = useState<SessionStatusFilter>('all')
+   528→
+   529→  const fetchSessions = useCallback(async () => {
+   530→    setLoading(true)
+   531→    try {
+   532→      const data = await inventoryApi.list()
+   533→      const list: InventorySession[] = data?.data || data || []
+   534→      setSessions(list)
+   535→    } catch (_e) {
+   536→      toast.error('Failed to load inventory sessions')
+   537→    } finally {
+   538→      setLoading(false)
+   539→    }
+   540→  }, [])
+   541→
+   542→  useEffect(() => {
+   543→    fetchSessions()
+   544→  }, [fetchSessions])
+   545→
+   546→  const filteredSessions = sessions.filter((s) => {
+   547→    if (filter === 'all') return true
+   548→    return s.status === filter
+   549→  })
+   550→
+   551→  const openSession = (session: InventorySession) => {
+   552→    setSelectedInventoryId(session.id)
+   553→    navigate('inventory-detail')
+   554→  }
+   555→
+   556→  const filters: { label: string; value: SessionStatusFilter }[] = [
+   557→    { label: 'All', value: 'all' },
+   558→    { label: 'In Progress', value: 'in_progress' },
+   559→    { label: 'Completed', value: 'completed' },
+   560→    { label: 'Cancelled', value: 'cancelled' },
+   561→  ]
+   562→
+   563→  return (
+   564→    <div className="flex flex-col gap-4 p-4 md:p-6 max-w-4xl mx-auto w-full">
+   565→      {/* Header */}
+   566→      <motion.div
+   567→        {...fadeIn}
+   568→        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+   569→      >
+   570→        <div>
+   571→          <h2 className="text-xl font-bold flex items-center gap-2">
+   572→            <ClipboardList className="h-5 w-5 text-primary" />
+   573→            Inventory Sessions
+   574→          </h2>
+   575→          <p className="text-sm text-muted-foreground mt-0.5">
+   576→            Manage and track your asset inventory audits
+   577→          </p>
+   578→        </div>
+   579→        <Button className="gap-1.5 shrink-0" onClick={() => navigate('scan')}>
+   580→          <Plus className="h-4 w-4" />
+   581→          New Session
+   582→        </Button>
+   583→      </motion.div>
+   584→
+   585→      {/* Filters */}
+   586→      <motion.div {...fadeIn} className="flex gap-2 flex-wrap">
+   587→        {filters.map((f) => (
+   588→          <Button
+   589→            key={f.value}
+   590→            variant={filter === f.value ? 'default' : 'outline'}
+   591→            size="sm"
+   592→            onClick={() => setFilter(f.value)}
+   593→          >
+   594→            {f.label}
+   595→          </Button>
+   596→        ))}
+   597→      </motion.div>
+   598→
+   599→      {/* Loading skeletons */}
+   600→      {loading && (
+   601→        <motion.div
+   602→          {...staggerContainer}
+   603→          initial="initial"
+   604→          animate="animate"
+   605→          className="space-y-3"
+   606→        >
+   607→          {[1, 2, 3].map((i) => (
+   608→            <motion.div key={i} {...fadeIn}>
+   609→              <Skeleton className="h-32 w-full rounded-lg" />
+   610→            </motion.div>
+   611→          ))}
+   612→        </motion.div>
+   613→      )}
+   614→
+   615→      {/* Empty state */}
+   616→      {!loading && filteredSessions.length === 0 && (
+   617→        <motion.div
+   618→          {...fadeIn}
+   619→          className="flex flex-col items-center justify-center py-16 text-center"
+   620→        >
+   621→          <PackageSearch className="h-12 w-12 text-muted-foreground/40 mb-3" />
+   622→          <h3 className="text-base font-medium text-muted-foreground">No sessions found</h3>
+   623→          <p className="text-sm text-muted-foreground/70 mt-1">
+   624→            {filter === 'all'
+   625→              ? 'Create your first inventory session to get started.'
+   626→              : `No ${statusLabel(filter).toLowerCase()} sessions.`}
+   627→          </p>
+   628→        </motion.div>
+   629→      )}
+   630→
+   631→      {/* Session Cards */}
+   632→      {!loading && filteredSessions.length > 0 && (
+   633→        <motion.div
+   634→          {...staggerContainer}
+   635→          initial="initial"
+   636→          animate="animate"
+   637→          className="space-y-3"
+   638→        >
+   639→          {filteredSessions.map((session) => {
+   640→            const progressPct =
+   641→              session.totalExpected > 0
+   642→                ? Math.round((session.totalScanned / session.totalExpected) * 100)
+   643→                : 0
+   644→            return (
+   645→              <motion.div key={session.id} {...fadeIn}>
+   646→                <Card
+   647→                  className="cursor-pointer hover:shadow-md transition-shadow"
+   648→                  onClick={() => openSession(session)}
+   649→                >
+   650→                  <CardContent className="p-4">
+   651→                    <div className="flex items-start justify-between gap-3 mb-3">
+   652→                      <div className="min-w-0">
+   653→                        <h3 className="font-semibold text-sm truncate">
+   654→                          {session.name}
+   655→                        </h3>
+   656→                        <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+   657→                          {session.location && (
+   658→                            <span className="flex items-center gap-1">
+   659→                              <MapPin className="h-3 w-3" />
+   660→                              {session.location.name}
+   661→                            </span>
+   662→                          )}
+   663→                          {session.user && (
+   664→                            <span className="flex items-center gap-1">
+   665→                              <User className="h-3 w-3" />
+   666→                              {session.user.name}
+   667→                            </span>
+   668→                          )}
+   669→                        </div>
+   670→                      </div>
+   671→                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+   672→                        <Badge variant={statusVariant(session.status)}>
+   673→                          {statusLabel(session.status)}
+   674→                        </Badge>
+   675→                        <span className="text-xs text-muted-foreground">
+   676→                          {relativeTime(session.startedAt)}
+   677→                        </span>
+   678→                      </div>
+   679→                    </div>
+   680→
+   681→                    {/* Progress */}
+   682→                    <div className="space-y-1.5">
+   683→                      <div className="flex items-center justify-between text-xs">
+   684→                        <span className="text-muted-foreground">
+   685→                          Progress
+   686→                        </span>
+   687→                        <span className="font-medium">
+   688→                          {session.totalScanned} / {session.totalExpected}
+   689→                        </span>
+   690→                      </div>
+   691→                      <Progress value={progressPct} className="h-2" />
+   692→                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+   693→                        <span>{progressPct}%</span>
+   694→                        <ChevronRight className="h-3.5 w-3.5" />
+   695→                      </div>
+   696→                    </div>
+   697→                  </CardContent>
+   698→                </Card>
+   699→              </motion.div>
+   700→            )
+   701→          })}
+   702→        </motion.div>
+   703→      )}
+   704→    </div>
+   705→  )
+   706→}
+   707→
+   708→/* ──────────────────────────────────────────────
+   709→   INVENTORY DETAIL VIEW
+   710→   ────────────────────────────────────────────── */
+   711→
+   712→function InventoryDetailView() {
+   713→  const { selectedInventoryId, goBack, navigate } = useAppStore()
+   714→  const [session, setSession] = useState<InventorySession | null>(null)
+   715→  const [loading, setLoading] = useState(true)
+   716→  const [completing, setCompleting] = useState(false)
+   717→  const [showCompleteDialog, setShowCompleteDialog] = useState(false)
+   718→
+   719→  const fetchSession = useCallback(async () => {
+   720→    if (!selectedInventoryId) return
+   721→    setLoading(true)
+   722→    try {
+   723→      const data = await inventoryApi.get(selectedInventoryId)
+   724→      const s: InventorySession = data?.data || data
+   725→      setSession(s)
+   726→    } catch (_e) {
+   727→      toast.error('Failed to load session details')
+   728→    } finally {
+   729→      setLoading(false)
+   730→    }
+   731→  }, [selectedInventoryId])
+   732→
+   733→  useEffect(() => {
+   734→    fetchSession()
+   735→  }, [fetchSession])
+   736→
+   737→  const handleComplete = async () => {
+   738→    if (!selectedInventoryId) return
+   739→    setCompleting(true)
+   740→    try {
+   741→      await inventoryApi.complete(selectedInventoryId)
+   742→      toast.success('Session completed successfully')
+   743→      setShowCompleteDialog(false)
+   744→      fetchSession()
+   745→    } catch (_e) {
+   746→      toast.error('Failed to complete session')
+   747→    } finally {
+   748→      setCompleting(false)
+   749→    }
+   750→  }
+   751→
+   752→  const isCompleted = session?.status === 'completed'
+   753→  const isInProgress = session?.status === 'in_progress'
+   754→  const items: InventoryItem[] = session?.items || []
+   755→  const matchedCount = items.filter((i) => !i.discrepancyType).length
+   756→  const discrepancyCount = items.filter((i) => i.discrepancyType).length
+   757→  const matchRate =
+   758→    items.length > 0 ? Math.round((matchedCount / items.length) * 100) : 0
+   759→  const missingCount = items.filter((i) => i.discrepancyType === 'missing').length
+   760→  const extraCount = items.filter((i) => i.discrepancyType === 'extra').length
+   761→
+   762→  if (loading) {
+   763→    return (
+   764→      <div className="flex flex-col gap-4 p-4 md:p-6 max-w-5xl mx-auto w-full">
+   765→        <Skeleton className="h-8 w-48" />
+   766→        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+   767→          {[1, 2, 3, 4].map((i) => (
+   768→            <Skeleton key={i} className="h-24 rounded-lg" />
+   769→          ))}
+   770→        </div>
+   771→        <Skeleton className="h-64 w-full rounded-lg" />
+   772→      </div>
+   773→    )
+   774→  }
+   775→
+   776→  if (!session) {
+   777→    return (
+   778→      <div className="flex flex-col items-center justify-center py-16 text-center">
+   779→        <PackageSearch className="h-12 w-12 text-muted-foreground/40 mb-3" />
+   780→        <h3 className="text-base font-medium text-muted-foreground">Session not found</h3>
+   781→        <Button variant="outline" className="mt-4" onClick={goBack}>
+   782→          <ArrowLeft className="h-4 w-4 mr-1.5" />
+   783→          Go Back
+   784→        </Button>
+   785→      </div>
+   786→    )
+   787→  }
+   788→
+   789→  return (
+   790→    <div className="flex flex-col gap-4 p-4 md:p-6 max-w-5xl mx-auto w-full">
+   791→      {/* Header */}
+   792→      <motion.div
+   793→        {...fadeIn}
+   794→        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+   795→      >
+   796→        <div className="flex items-center gap-3">
+   797→          <Button variant="ghost" size="icon" onClick={goBack}>
+   798→            <ArrowLeft className="h-5 w-5" />
+   799→          </Button>
+   800→          <div>
+   801→            <div className="flex items-center gap-2">
+   802→              <h2 className="text-xl font-bold">{session.name}</h2>
+   803→              <Badge variant={statusVariant(session.status)}>
+   804→                {statusLabel(session.status)}
+   805→              </Badge>
+   806→            </div>
+   807→            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+   808→              {session.location && (
+   809→                <span className="flex items-center gap-1">
+   810→                  <MapPin className="h-3 w-3" />
+   811→                  {session.location.name}
+   812→                </span>
+   813→              )}
+   814→              <span className="flex items-center gap-1">
+   815→                <Clock className="h-3 w-3" />
+   816→                Started {formatDate(session.startedAt)}
+   817→              </span>
+   818→              {session.user && (
+   819→                <span className="flex items-center gap-1">
+   820→                  <User className="h-3 w-3" />
+   821→                  {session.user.name}
+   822→                </span>
+   823→              )}
+   824→            </div>
+   825→          </div>
+   826→        </div>
+   827→
+   828→        <div className="flex gap-2 shrink-0">
+   829→          <Button variant="outline" className="gap-1.5" onClick={() => navigate('scan')}>
+   830→            <ScanLine className="h-4 w-4" />
+   831→            Scan
+   832→          </Button>
+   833→          {isInProgress && (
+   834→            <Button
+   835→              className="gap-1.5"
+   836→              onClick={() => setShowCompleteDialog(true)}
+   837→            >
+   838→              <CheckCheck className="h-4 w-4" />
+   839→              Complete Session
+   840→            </Button>
+   841→          )}
+   842→        </div>
+   843→      </motion.div>
+   844→
+   845→      {/* Stats Cards */}
+   846→      <motion.div
+   847→        {...staggerContainer}
+   848→        initial="initial"
+   849→        animate="animate"
+   850→        className="grid grid-cols-2 sm:grid-cols-5 gap-3"
+   851→      >
+   852→        {[
+   853→          {
+   854→            label: 'Expected',
+   855→            value: session.totalExpected,
+   856→            icon: ListChecks,
+   857→            color: 'text-slate-600',
+   858→            bg: 'bg-slate-50',
+   859→          },
+   860→          {
+   861→            label: 'Scanned',
+   862→            value: session.totalScanned,
+   863→            icon: ScanLine,
+   864→            color: 'text-primary',
+   865→            bg: 'bg-primary/10',
+   866→          },
+   867→          {
+   868→            label: 'Matched',
+   869→            value: matchedCount,
+   870→            icon: CheckCircle2,
+   871→            color: 'text-emerald-600',
+   872→            bg: 'bg-emerald-50',
+   873→          },
+   874→          {
+   875→            label: 'Missing',
+   876→            value: session.totalMissing,
+   877→            icon: AlertTriangle,
+   878→            color: 'text-amber-600',
+   879→            bg: 'bg-amber-50',
+   880→          },
+   881→          {
+   882→            label: 'Extra',
+   883→            value: session.totalExtra,
+   884→            icon: XCircle,
+   885→            color: 'text-red-600',
+   886→            bg: 'bg-red-50',
+   887→          },
+   888→        ].map((stat) => (
+   889→          <motion.div key={stat.label} {...fadeIn}>
+   890→            <Card className={`${stat.bg} border-0`}>
+   891→              <CardContent className="p-3 sm:p-4 flex flex-col items-center text-center gap-1">
+   892→                <stat.icon className={`h-5 w-5 ${stat.color}`} />
+   893→                <span className="text-xl sm:text-2xl font-bold">{stat.value}</span>
+   894→                <span className="text-xs text-muted-foreground">{stat.label}</span>
+   895→              </CardContent>
+   896→            </Card>
+   897→          </motion.div>
+   898→        ))}
+   899→      </motion.div>
+   900→
+   901→      {/* Completion Summary */}
+   902→      <AnimatePresence>
+   903→        {isCompleted && (
+   904→          <motion.div
+   905→            initial={{ opacity: 0, height: 0 }}
+   906→            animate={{ opacity: 1, height: 'auto' }}
+   907→            exit={{ opacity: 0, height: 0 }}
+   908→          >
+   909→            <Card className="border-emerald-200 bg-emerald-50/50">
+   910→              <CardContent className="p-4">
+   911→                <div className="flex items-center justify-between">
+   912→                  <div className="flex items-center gap-2">
+   913→                    <CheckCheck className="h-5 w-5 text-emerald-600" />
+   914→                    <span className="font-semibold text-emerald-800">
+   915→                      Session Completed
+   916→                    </span>
+   917→                  </div>
+   918→                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+   919→                    {matchRate}% Match Rate
+   920→                  </Badge>
+   921→                </div>
+   922→                <div className="mt-3 space-y-2">
+   923→                  <div className="flex items-center justify-between text-sm">
+   924→                    <span className="text-emerald-700">Matched items</span>
+   925→                    <span className="font-medium">{matchedCount}</span>
+   926→                  </div>
+   927→                  <div className="flex items-center justify-between text-sm">
+   928→                    <span className="text-amber-700">Discrepancies</span>
+   929→                    <span className="font-medium">{discrepancyCount}</span>
+   930→                  </div>
+   931→                  <Progress value={matchRate} className="h-2 mt-1" />
+   932→                </div>
+   933→                {session.completedAt && (
+   934→                  <p className="text-xs text-emerald-600/70 mt-2">
+   935→                    Completed on {formatDate(session.completedAt)}
+   936→                  </p>
+   937→                )}
+   938→              </CardContent>
+   939→            </Card>
+   940→          </motion.div>
+   941→        )}
+   942→      </AnimatePresence>
+   943→
+   944→      {/* Scanned Items Table */}
+   945→      <motion.div {...fadeIn}>
+   946→        <Card>
+   947→          <CardHeader className="pb-3">
+   948→            <CardTitle className="text-base">Scanned Items</CardTitle>
+   949→            <CardDescription>
+   950→              {items.length} item{items.length !== 1 ? 's' : ''} scanned
+   951→            </CardDescription>
+   952→          </CardHeader>
+   953→          <CardContent className="p-0">
+   954→            {items.length === 0 ? (
+   955→              <div className="flex flex-col items-center justify-center py-10 text-center">
+   956→                <ScanLine className="h-8 w-8 text-muted-foreground/40 mb-2" />
+   957→                <p className="text-sm text-muted-foreground">No items scanned yet</p>
+   958→              </div>
+   959→            ) : (
+   960→              <div className="overflow-x-auto max-h-96 overflow-y-auto">
+   961→                <Table>
+   962→                  <TableHeader>
+   963→                    <TableRow>
+   964→                      <TableHead className="w-[140px]">QR Code</TableHead>
+   965→                      <TableHead>Asset Name</TableHead>
+   966→                      <TableHead className="w-[100px]">Status</TableHead>
+   967→                      <TableHead className="w-[140px]">Discrepancy</TableHead>
+   968→                      <TableHead className="w-[100px]">Time</TableHead>
+   969→                    </TableRow>
+   970→                  </TableHeader>
+   971→                  <TableBody>
+   972→                    {items.map((item) => {
+   973→                      const hasDiscrepancy = !!item.discrepancyType
+   974→                      const rowClass = hasDiscrepancy
+   975→                        ? item.discrepancyType === 'missing'
+   976→                          ? 'bg-amber-50/80 dark:bg-amber-950/20'
+   977→                          : 'bg-red-50/80 dark:bg-red-950/20'
+   978→                        : ''
+   979→
+   980→                      return (
+   981→                        <TableRow key={item.id} className={rowClass}>
+   982→                          <TableCell className="font-mono text-xs">
+   983→                            {item.qrCode || (item.asset?.qrCode ? `...${item.asset.qrCode.slice(-8)}` : '—')}
+   984→                          </TableCell>
+   985→                          <TableCell className="font-medium text-sm">
+   986→                            {item.asset?.name || 'Unregistered'}
+   987→                          </TableCell>
+   988→                          <TableCell>
+   989→                            {item.asset ? (
+   990→                              <Badge
+   991→                                variant="secondary"
+   992→                                className={assetStatusColor(item.asset.status)}
+   993→                              >
+   994→                                {item.asset.status}
+   995→                              </Badge>
+   996→                            ) : (
+   997→                              <Badge variant="outline">unknown</Badge>
+   998→                            )}
+   999→                          </TableCell>
+  1000→                          <TableCell>
+  1001→                            {hasDiscrepancy ? (
+  1002→                              <Badge
+  1003→                                variant={item.discrepancyType === 'missing' ? 'outline' : 'destructive'}
+  1004→                                className={
+  1005→                                  item.discrepancyType === 'missing'
+  1006→                                    ? 'border-amber-300 text-amber-700 bg-amber-50'
+  1007→                                    : ''
+  1008→                                }
+  1009→                              >
+  1010→                                {item.discrepancyType === 'missing' && (
+  1011→                                  <AlertTriangle className="h-3 w-3 mr-1" />
+  1012→                                )}
+  1013→                                {item.discrepancyType === 'extra' && (
+  1014→                                  <XCircle className="h-3 w-3 mr-1" />
+  1015→                                )}
+  1016→                                {item.discrepancyType}
+  1017→                                {item.discrepancyNote && (
+  1018→                                  <span className="ml-1 text-[10px] opacity-70">
+  1019→                                    — {item.discrepancyNote}
+  1020→                                  </span>
+  1021→                                )}
+  1022→                              </Badge>
+  1023→                            ) : (
+  1024→                              <span className="text-xs text-muted-foreground">—</span>
+  1025→                            )}
+  1026→                          </TableCell>
+  1027→                          <TableCell className="text-xs text-muted-foreground">
+  1028→                            {new Date(item.scannedAt).toLocaleTimeString('en-US', {
+  1029→                              hour: '2-digit',
+  1030→                              minute: '2-digit',
+  1031→                              second: '2-digit',
+  1032→                            })}
+  1033→                          </TableCell>
+  1034→                        </TableRow>
+  1035→                      )
+  1036→                    })}
+  1037→                  </TableBody>
+  1038→                </Table>
+  1039→              </div>
+  1040→            )}
+  1041→          </CardContent>
+  1042→        </Card>
+  1043→      </motion.div>
+  1044→
+  1045→      {/* Complete Session Dialog */}
+  1046→      <Dialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
+  1047→        <DialogContent>
+  1048→          <DialogHeader>
+  1049→            <DialogTitle>Complete Inventory Session?</DialogTitle>
+  1050→            <DialogDescription>
+  1051→              This will finalize the session &ldquo;{session.name}&rdquo;. You will
+  1052→              not be able to scan additional items after completion.
+  1053→              {session.totalExpected > 0 && session.totalScanned < session.totalExpected && (
+  1054→                <span className="block mt-2 text-amber-600 font-medium">
+  1055→                  <AlertTriangle className="h-4 w-4 inline mr-1" />
+  1056→                  Warning: {session.totalExpected - session.totalScanned} expected items have not been scanned yet.
+  1057→                </span>
+  1058→              )}
+  1059→            </DialogDescription>
+  1060→          </DialogHeader>
+  1061→          <DialogFooter>
+  1062→            <Button
+  1063→              variant="outline"
+  1064→              onClick={() => setShowCompleteDialog(false)}
+  1065→              disabled={completing}
+  1066→            >
+  1067→              Cancel
+  1068→            </Button>
+  1069→            <Button onClick={handleComplete} disabled={completing}>
+  1070→              {completing ? 'Completing...' : 'Complete Session'}
+  1071→            </Button>
+  1072→          </DialogFooter>
+  1073→        </DialogContent>
+  1074→      </Dialog>
+  1075→    </div>
+  1076→  )
+  1077→}
+  1078→
+  1079→/* ──────────────────────────────────────────────
+  1080→   MAIN EXPORT
+  1081→   ────────────────────────────────────────────── */
+  1082→
+  1083→export default function InventoryView() {
+  1084→  const { currentView } = useAppStore()
+  1085→
+  1086→  return (
+  1087→    <main className="min-h-screen w-full">
+  1088→      <AnimatePresence mode="wait">
+  1089→        {currentView === 'scan' && (
+  1090→          <motion.div
+  1091→            key="scan"
+  1092→            initial={{ opacity: 0, x: 20 }}
+  1093→            animate={{ opacity: 1, x: 0 }}
+  1094→            exit={{ opacity: 0, x: -20 }}
+  1095→            transition={{ duration: 0.2 }}
+  1096→          >
+  1097→            <ScanView />
+  1098→          </motion.div>
+  1099→        )}
+  1100→        {currentView === 'inventory' && (
+  1101→          <motion.div
+  1102→            key="inventory"
+  1103→            initial={{ opacity: 0, x: 20 }}
+  1104→            animate={{ opacity: 1, x: 0 }}
+  1105→            exit={{ opacity: 0, x: -20 }}
+  1106→            transition={{ duration: 0.2 }}
+  1107→          >
+  1108→            <InventoryListView />
+  1109→          </motion.div>
+  1110→        )}
+  1111→        {currentView === 'inventory-detail' && (
+  1112→          <motion.div
+  1113→            key="inventory-detail"
+  1114→            initial={{ opacity: 0, x: 20 }}
+  1115→            animate={{ opacity: 1, x: 0 }}
+  1116→            exit={{ opacity: 0, x: -20 }}
+  1117→            transition={{ duration: 0.2 }}
+  1118→          >
+  1119→            <InventoryDetailView />
+  1120→          </motion.div>
+  1121→        )}
+  1122→      </AnimatePresence>
+  1123→    </main>
+  1124→  )
+  1125→}
+  1126→
