@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { useAppStore } from '@/lib/store'
 import PortalView from '@/components/portal/portal-view'
 import LoginView from '@/components/auth/login-view'
-import RegisterView from '@/components/auth/register-view'
+import RegistrationWizard from '@/components/auth/registration-wizard'
+import PwaInstallPrompt from '@/components/pwa/pwa-install-prompt'
 import AdminView from '@/components/admin/admin-view'
 import { DesktopSidebar, MobileSidebar } from '@/components/layout/sidebar'
 import AppHeader from '@/components/layout/app-header'
@@ -49,6 +51,7 @@ function AppLayout() {
           {renderView()}
         </main>
       </div>
+      <PwaInstallPrompt />
     </div>
   )
 }
@@ -82,6 +85,14 @@ export default function Home() {
         localStorage.removeItem('zeitgeist_super_token')
       }
     }
+
+    // Handle payment success redirect from WiPay
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('payment_success') === 'true') {
+      toast.success('Payment completed! Your subscription is now active.')
+      // Clean URL without refresh
+      window.history.replaceState({}, '', '/')
+    }
   }, [])
 
   useEffect(() => {
@@ -105,8 +116,8 @@ export default function Home() {
     if (currentView === 'login') {
       return <LoginView />
     }
-    if (currentView === 'register') {
-      return <RegisterView />
+    if (currentView === 'register' || currentView === 'register-wizard') {
+      return <RegistrationWizard />
     }
     // Default: show marketing portal
     return <PortalView />

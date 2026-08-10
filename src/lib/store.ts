@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type View = 'login' | 'register' | 'dashboard' | 'assets' | 'asset-detail' | 'add-asset' | 'edit-asset' | 'scan' | 'inventory' | 'inventory-detail' | 'reports' | 'settings' | 'users' | 'super-admin' | 'admin-tenant-detail' | 'portal'
+export type View = 'login' | 'register' | 'register-wizard' | 'dashboard' | 'assets' | 'asset-detail' | 'add-asset' | 'edit-asset' | 'scan' | 'inventory' | 'inventory-detail' | 'reports' | 'settings' | 'users' | 'super-admin' | 'admin-tenant-detail' | 'portal'
 
 export interface SuperAdmin {
   id: string
