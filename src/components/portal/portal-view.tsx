@@ -177,7 +177,7 @@ export default function PortalView() {
                 Sign In
               </Button>
               <Button
-                onClick={() => navigate('register')}
+                onClick={() => navigate('register-wizard')}
                 className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white border-0 shadow-lg shadow-teal-500/25 hover:shadow-teal-500/40 transition-all duration-300 text-sm"
               >
                 Get Started
@@ -247,7 +247,7 @@ export default function PortalView() {
 
                 <motion.div variants={fadeUp} custom={3} className="mt-8 flex flex-wrap gap-4">
                   <Button
-                    onClick={() => navigate('register')}
+                    onClick={() => navigate('register-wizard')}
                     size="lg"
                     className="bg-gradient-to-r from-[#d4a843] to-[#e8b84a] hover:from-[#e0b34a] hover:to-[#f0c45a] text-[#0a1628] font-semibold shadow-lg shadow-[#d4a843]/25 hover:shadow-[#d4a843]/40 transition-all duration-300 px-7 h-12 text-base rounded-xl"
                   >
@@ -652,7 +652,7 @@ export default function PortalView() {
                   </CardContent>
                   <CardFooter>
                     <Button
-                      onClick={() => navigate('register')}
+                      onClick={() => navigate('register-wizard')}
                       variant="outline"
                       className="w-full h-11 border-gray-300 text-[#0a1628] hover:bg-gray-50 hover:border-gray-400 rounded-xl text-sm font-medium"
                     >
@@ -706,7 +706,7 @@ export default function PortalView() {
                   </CardContent>
                   <CardFooter>
                     <Button
-                      onClick={() => navigate('register')}
+                      onClick={() => navigate('register-wizard')}
                       className="w-full h-11 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white border-0 shadow-lg shadow-teal-500/25 hover:shadow-teal-500/40 transition-all duration-300 rounded-xl text-sm font-semibold"
                     >
                       Get Started
@@ -750,7 +750,7 @@ export default function PortalView() {
                   </CardContent>
                   <CardFooter>
                     <Button
-                      onClick={() => navigate('register')}
+                      onClick={() => navigate('register-wizard')}
                       variant="outline"
                       className="w-full h-11 border-gray-300 text-[#0a1628] hover:bg-gray-50 hover:border-gray-400 rounded-xl text-sm font-medium"
                     >
@@ -855,7 +855,7 @@ export default function PortalView() {
             </motion.p>
             <motion.div variants={fadeUp} custom={2} className="mt-10">
               <Button
-                onClick={() => navigate('register')}
+                onClick={() => navigate('register-wizard')}
                 size="lg"
                 className="bg-gradient-to-r from-[#d4a843] to-[#e8b84a] hover:from-[#e0b34a] hover:to-[#f0c45a] text-[#0a1628] font-bold shadow-xl shadow-[#d4a843]/25 hover:shadow-[#d4a843]/40 transition-all duration-300 px-10 h-14 text-base rounded-2xl"
               >
