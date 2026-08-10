@@ -25,3 +25,32 @@ Stage Summary:
 - Accounting: Chart of accounts, journal entries, trial balance per T&T rules
 - GitHub: https://github.com/comandomorillo2026/AssetHub
 - Demo: admin@demo.com / demo123, slug: pos-municipal-corp
+---
+Task ID: 1
+Agent: Main
+Task: PWA + WiPay + Registration Wizard
+
+Work Log:
+- Generated 8 PWA icons (72-512px) using sharp SVG rendering
+- Created public/manifest.json with full PWA manifest (icons, display standalone, theme color)
+- Created public/sw.js service worker with network-first + cache-first strategies
+- Created PWA register component for SW installation
+- Created PWA install prompt component with smart dismissal (visits counter, beforeinstallprompt)
+- Updated layout.tsx with PWA meta tags, viewport config, apple-touch-icon, manifest link
+- Created /api/payments/route.ts for WiPay checkout initiation
+- Created /api/payments/webhook/route.ts for WiPay payment confirmation with auto journal entry
+- Created /api/payments/demo-checkout/route.ts for dev mode WiPay simulation
+- Created registration-wizard.tsx with 5 steps: Org → Account → Plan → WiPay Payment → Success
+- Updated register API to handle plan, billing cycle, phone, address fields
+- Updated store.ts with 'register-wizard' view type
+- Updated portal to navigate to register-wizard instead of register
+- Updated page.tsx to use RegistrationWizard, handle payment_success redirect
+- Updated .gitignore for scripts/, clean ESLint
+- All changes pushed to GitHub (commit 4c270b4)
+
+Stage Summary:
+- PWA fully configured: manifest, SW, icons, install prompt, offline caching
+- WiPay integration: 3 API routes, demo checkout page, webhook auto-accounting
+- Registration wizard: 5-step flow with plan selection (monthly/yearly) and WiPay payment
+- ESLint clean, server compiles and returns HTTP 200
+- Pushed to GitHub: https://github.com/comandomorillo2026/AssetHub.git
