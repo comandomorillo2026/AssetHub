@@ -260,12 +260,14 @@ function OverviewTab() {
     { label: 'Active', value: stats.activeTenants, icon: Activity, color: 'text-emerald-600', bg: 'bg-emerald-100' },
     { label: 'Monthly Revenue', value: `$${stats.mrr.toLocaleString()} TTD`, icon: TrendingUp, color: 'text-amber-600', bg: 'bg-amber-100' },
     { label: 'Overdue Invoices', value: stats.overdueCount, icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-100' },
+    { label: 'Total Revenue', value: `$${(stats.totalRevenue || 0).toLocaleString()} TTD`, icon: DollarSign, color: 'text-blue-600', bg: 'bg-blue-100' },
+    { label: 'Inactive', value: stats.inactiveTenants, icon: XCircle, color: 'text-slate-400', bg: 'bg-slate-50' },
   ]
 
   return (
     <div className="space-y-6">
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {statCards.map((card, i) => (
           <motion.div key={card.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
             <Card className="border-slate-200/80 hover:shadow-md transition-shadow">
@@ -463,6 +465,9 @@ function TenantsTab() {
   const [tenants, setTenants] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createForm, setCreateForm] = useState({ name: '', slug: '', type: 'private', contactName: '', contactEmail: '', contactPhone: '', address: '' })
+  const [creating, setCreating] = useState(false)
 
   const loadTenants = useCallback(async () => {
     setLoading(true)
@@ -477,6 +482,20 @@ function TenantsTab() {
   }, [search])
 
   useEffect(() => { loadTenants() }, [loadTenants])
+
+  const handleCreate = async () => {
+    if (!createForm.name || !createForm.slug) { toast.error('Name and slug required'); return }
+    setCreating(true)
+    try {
+      await adminApi.createTenant(createForm)
+      toast.success('Tenant created')
+      setCreateOpen(false)
+      setCreateForm({ name: '', slug: '', type: 'private', contactName: '', contactEmail: '', contactPhone: '', address: '' })
+      loadTenants()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed')
+    } finally { setCreating(false) }
+  }
 
   const navigate = useAppStore((s) => s.navigate)
   const setAdminSelectedTenantId = useAppStore((s) => s.setAdminSelectedTenantId)
@@ -495,6 +514,9 @@ function TenantsTab() {
         </div>
         <Button onClick={loadTenants} variant="outline" size="icon" className="h-10 w-10">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        </Button>
+        <Button onClick={() => setCreateOpen(true)} size="sm" className="bg-amber-600 hover:bg-amber-700 text-white h-10">
+          <Plus className="w-4 h-4 mr-1" /> New Tenant
         </Button>
       </div>
 
@@ -552,6 +574,47 @@ function TenantsTab() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create New Tenant</DialogTitle>
+            <DialogDescription>Register a new institution on the platform</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Institution Name</Label><Input value={createForm.name} onChange={e => setCreateForm({...createForm, name: e.target.value})} placeholder="e.g. Port of Spain Municipal Corp" /></div>
+              <div className="space-y-2"><Label>Slug</Label><Input value={createForm.slug} onChange={e => setCreateForm({...createForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-')})} placeholder="e.g. pos-municipal-corp" /></div>
+            </div>
+            <div className="space-y-2"><Label>Type</Label>
+              <Select value={createForm.type} onValueChange={v => setCreateForm({...createForm, type: v})}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="private">Private Company</SelectItem>
+                  <SelectItem value="government">Government / Municipal</SelectItem>
+                  <SelectItem value="education">Education</SelectItem>
+                  <SelectItem value="healthcare">Healthcare</SelectItem>
+                  <SelectItem value="nonprofit">Non-Profit</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Separator />
+            <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Contact Information</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Contact Name</Label><Input value={createForm.contactName} onChange={e => setCreateForm({...createForm, contactName: e.target.value})} /></div>
+              <div className="space-y-2"><Label>Contact Email</Label><Input type="email" value={createForm.contactEmail} onChange={e => setCreateForm({...createForm, contactEmail: e.target.value})} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Phone</Label><Input value={createForm.contactPhone} onChange={e => setCreateForm({...createForm, contactPhone: e.target.value})} /></div>
+              <div className="space-y-2"><Label>Address</Label><Input value={createForm.address} onChange={e => setCreateForm({...createForm, address: e.target.value})} /></div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+            <Button className="bg-amber-600 hover:bg-amber-700 text-white" onClick={handleCreate} disabled={creating}>{creating ? 'Creating...' : 'Create Tenant'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -665,6 +728,20 @@ function AccountingTab() {
     expense: 'bg-orange-100 text-orange-700',
   }
 
+  const exportCSV = (data: any[], filename: string) => {
+    if (!data.length) return
+    const headers = Object.keys(data[0])
+    const csv = [headers.join(','), ...data.map(row => headers.map(h => JSON.stringify(row[h] ?? '')).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${filename}-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('Exported to CSV')
+  }
+
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -676,7 +753,10 @@ function AccountingTab() {
 
         <TabsContent value="accounts" className="mt-4">
           <Card className="border-slate-200/80">
-            <CardHeader><CardTitle className="text-base">Chart of Accounts</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Chart of Accounts</CardTitle>
+              <Button variant="outline" size="sm" onClick={() => exportCSV(accounts, 'chart-of-accounts')}><FileText className="w-4 h-4 mr-1" /> Export CSV</Button>
+            </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
@@ -708,7 +788,10 @@ function AccountingTab() {
 
         <TabsContent value="journal" className="mt-4">
           <Card className="border-slate-200/80">
-            <CardHeader><CardTitle className="text-base">Journal Entries</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Journal Entries</CardTitle>
+              <Button variant="outline" size="sm" onClick={() => exportCSV(journalEntries.flatMap((je: any) => je.entries.map((e: any) => ({ journal: je.number, date: je.date, account: e.ledgerAccount?.code, accountName: e.ledgerAccount?.name, debit: e.debit, credit: e.credit, status: je.status }))), 'journal-entries')}><FileText className="w-4 h-4 mr-1" /> Export CSV</Button>
+            </CardHeader>
             <CardContent>
               <div className="space-y-4 max-h-96 overflow-y-auto">
                 {journalEntries.map((je: any) => (
@@ -750,20 +833,15 @@ function AccountingTab() {
 
         <TabsContent value="trial" className="mt-4">
           <Card className="border-slate-200/80">
-            <CardHeader>
-              <CardTitle className="text-base">Trial Balance</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div><CardTitle className="text-base">Trial Balance</CardTitle>
               {trialBalance && (
                 <CardDescription className="flex items-center gap-2">
-                  {trialBalance.balanced ? (
-                    <><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Balanced</>
-                  ) : (
-                    <><AlertTriangle className="w-4 h-4 text-red-500" /> Out of Balance</>
-                  )}
-                  {trialBalance.balanced && (
-                    <span className="text-xs text-slate-400">Debits: ${trialBalance.totalDebits.toFixed(2)} = Credits: ${trialBalance.totalCredits.toFixed(2)}</span>
-                  )}
+                  {trialBalance.balanced ? (<><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Balanced</>) : (<><AlertTriangle className="w-4 h-4 text-red-500" /> Out of Balance</>)}
+                  {trialBalance.balanced && (<span className="text-xs text-slate-400">Debits: ${trialBalance.totalDebits.toFixed(2)} = Credits: ${trialBalance.totalCredits.toFixed(2)}</span>)}
                 </CardDescription>
-              )}
+              )}</div>
+              <Button variant="outline" size="sm" onClick={() => exportCSV(trialBalance?.trialBalance || [], 'trial-balance')}><FileText className="w-4 h-4 mr-1" /> Export CSV</Button>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -843,6 +921,10 @@ function TenantDetailView() {
   const [loading, setLoading] = useState(true)
   const [recordPaymentOpen, setRecordPaymentOpen] = useState(false)
   const [paymentForm, setPaymentForm] = useState({ amount: '', method: 'bank_transfer', reference: '', notes: '' })
+  const [editOpen, setEditOpen] = useState(false)
+  const [editForm, setEditForm] = useState({ name: '', slug: '', type: '', contactName: '', contactEmail: '', contactPhone: '', address: '', country: '', currency: '' })
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const loadData = useCallback(async () => {
     if (!tenantId) return
@@ -892,6 +974,36 @@ function TenantDetailView() {
     }
   }
 
+  const openEdit = () => {
+    if (!data?.tenant) return
+    setEditForm({
+      name: t.name, slug: t.slug, type: t.type, contactName: t.contactName || '', contactEmail: t.contactEmail || '', contactPhone: t.contactPhone || '', address: t.address || '', country: t.country || '', currency: t.currency || ''
+    })
+    setEditOpen(true)
+  }
+
+  const handleEditSave = async () => {
+    if (!tenantId) return
+    try {
+      await adminApi.updateTenant(tenantId, editForm)
+      toast.success('Tenant updated')
+      setEditOpen(false)
+      loadData()
+    } catch { toast.error('Failed to update tenant') }
+  }
+
+  const handleDelete = async () => {
+    if (!tenantId) return
+    setDeleting(true)
+    try {
+      await adminApi.toggleTenant(tenantId, false, 'Deleted by admin')
+      toast.success('Tenant deactivated')
+      setDeleteOpen(false)
+      navigate('super-admin')
+    } catch { toast.error('Failed to deactivate tenant') }
+    finally { setDeleting(false) }
+  }
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -938,6 +1050,12 @@ function TenantDetailView() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={openEdit}>
+            <FileText className="w-4 h-4 mr-1" /> Edit
+          </Button>
+          <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => setDeleteOpen(true)}>
+            <XCircle className="w-4 h-4 mr-1" /> Delete
+          </Button>
           <Button variant="outline" size="sm" onClick={handleToggleActive}>
             {t.isActive ? <><ToggleRight className="w-4 h-4 mr-1" /> Deactivate</> : <><ToggleLeft className="w-4 h-4 mr-1" /> Activate</>}
           </Button>
@@ -1226,6 +1344,78 @@ function TenantDetailView() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setRecordPaymentOpen(false)}>Cancel</Button>
             <Button className="bg-amber-600 hover:bg-amber-700 text-white" onClick={handleRecordPayment}>Record Payment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Tenant Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Tenant</DialogTitle>
+            <DialogDescription>Update tenant information</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Name</Label><Input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} /></div>
+              <div className="space-y-2"><Label>Slug</Label><Input value={editForm.slug} onChange={e => setEditForm({...editForm, slug: e.target.value})} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Type</Label>
+                <Select value={editForm.type} onValueChange={v => setEditForm({...editForm, type: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="private">Private</SelectItem>
+                    <SelectItem value="government">Government</SelectItem>
+                    <SelectItem value="education">Education</SelectItem>
+                    <SelectItem value="healthcare">Healthcare</SelectItem>
+                    <SelectItem value="nonprofit">Non-Profit</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2"><Label>Currency</Label>
+                <Select value={editForm.currency} onValueChange={v => setEditForm({...editForm, currency: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TTD">TTD</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="JMD">JMD</SelectItem>
+                    <SelectItem value="BBD">BBD</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Separator />
+            <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Contact Information</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Contact Name</Label><Input value={editForm.contactName} onChange={e => setEditForm({...editForm, contactName: e.target.value})} /></div>
+              <div className="space-y-2"><Label>Contact Email</Label><Input value={editForm.contactEmail} onChange={e => setEditForm({...editForm, contactEmail: e.target.value})} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Phone</Label><Input value={editForm.contactPhone} onChange={e => setEditForm({...editForm, contactPhone: e.target.value})} /></div>
+              <div className="space-y-2"><Label>Country</Label><Input value={editForm.country} onChange={e => setEditForm({...editForm, country: e.target.value})} /></div>
+            </div>
+            <div className="space-y-2"><Label>Address</Label><Input value={editForm.address} onChange={e => setEditForm({...editForm, address: e.target.value})} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button className="bg-amber-600 hover:bg-amber-700 text-white" onClick={handleEditSave}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Deactivate Tenant</DialogTitle>
+            <DialogDescription>
+              This will deactivate {data?.tenant?.name} and suspend all access. This action can be reversed later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>{deleting ? 'Deactivating...' : 'Deactivate'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

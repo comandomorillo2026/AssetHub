@@ -1,18 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 const db = new PrismaClient()
 
-function verifyAdmin(req: NextRequest): boolean {
-  return req.headers.get('x-super-admin-token') === 'zeitgeist-super-admin-2024'
-}
-
 // GET /api/admin/dashboard - Super admin dashboard stats
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    if (!verifyAdmin(req)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const [
       totalTenants,
       activeTenants,
