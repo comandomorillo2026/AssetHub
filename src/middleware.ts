@@ -15,8 +15,8 @@ const PUBLIC_PATHS = [
 const SUPER_ADMIN_PATHS = ['/api/admin'];
 
 const RATE_LIMIT_MAP = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_WINDOW = 60_000; // 1 minute
-const RATE_LIMIT_MAX = 60; // per window
+const RATE_LIMIT_WINDOW = 60_000;
+const RATE_LIMIT_MAX = 60;
 const AUTH_RATE_LIMIT_MAX = 10;
 
 function getRateLimitKey(request: NextRequest): string {
@@ -39,19 +39,15 @@ function checkRateLimit(key: string, max: number): boolean {
   return true;
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip non-API routes (Next.js pages, static files, _next)
   if (!pathname.startsWith('/api/')) {
-    // For non-API routes, ensure they go through the SPA
     return NextResponse.next();
   }
 
-  // Allow public endpoints
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
-  // Rate limiting for auth endpoints
   if (pathname.startsWith('/api/auth/login') || pathname.startsWith('/api/auth/register')) {
     const key = getRateLimitKey(request);
     if (!checkRateLimit(key, AUTH_RATE_LIMIT_MAX)) {
@@ -59,7 +55,6 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // General rate limiting for all API routes
   const rateKey = getRateLimitKey(request);
   if (!checkRateLimit(rateKey, RATE_LIMIT_MAX)) {
     return NextResponse.json({ error: 'Rate limit exceeded.' }, { status: 429 });
@@ -77,7 +72,7 @@ export function middleware(request: NextRequest) {
     }
     try {
       const token = authHeader.split(' ')[1];
-      verifySuperAdminToken(token);
+      await verifySuperAdminToken(token);
       return NextResponse.next();
     } catch {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
@@ -92,19 +87,12 @@ export function middleware(request: NextRequest) {
 
   try {
     const token = authHeader.split(' ')[1];
-    const payload = verifyAccessToken(token);
+    const payload = await verifyAccessToken(token);
 
-    // Inject tenantId and userId into request headers for downstream use
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set('x-auth-user-id', payload.userId);
     requestHeaders.set('x-auth-tenant-id', payload.tenantId);
     requestHeaders.set('x-auth-role', payload.role);
-
-    // For non-GET requests, check user role permissions
-    if (request.method !== 'GET' && payload.role === 'user') {
-      // Users can only modify assets they're assigned to (handled at route level)
-      // But allow basic operations
-    }
 
     return NextResponse.next({
       request: { headers: requestHeaders },
