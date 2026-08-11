@@ -1,56 +1,46 @@
-# Zeitgeist AssetHub — Work Log
+# AssetHub Work Log
 
 ---
-Task ID: 2
-Agent: Main
-Task: Add marketing portal, super admin dashboard, billing & accounting
+Task ID: 1-14 (batch)
+Agent: Main Agent + 6 subagents
+Task: Complete system upgrade - JWT Auth, PostgreSQL schema, 8 new modules, 20+ API routes, 4 new views
 
 Work Log:
-- Updated Prisma schema with 7 new models (SuperAdmin, Plan, Subscription, Payment, Invoice, LedgerAccount, JournalEntry, LedgerEntry)
-- Added contact fields to Tenant (contactName, contactEmail, contactPhone, address, activatedAt, deactivatedAt, deactivationReason)
-- Built 10 admin API routes (auth, tenants CRUD, tenant history, plans, billing, accounting, dashboard, seed, reseed, quick-seed)
-- Built full marketing portal landing page (10 sections: hero, trust bar, problem, features, how it works, pricing, FAQ, CTA, footer)
-- Built super admin dashboard with overview, tenants, plans, accounting, settings tabs
-- Built tenant detail view (patient-record style) with contact, subscription, asset stats, payment history, invoices, activity timeline
-- Added admin-api.ts client library
-- Updated store with super admin state, portal view type, tenant detail type
-- Changed default landing to portal (marketing page)
-- Created quick-seed route for reliable data seeding
-- All code lint-clean, pushed to GitHub
+- Rewrote Prisma schema: 13 models → 20 models (added TenantSettings, Notification, Maintenance, Document, Depreciation, DataMigration, RefreshToken)
+- Changed datasource provider to postgresql (SQLite for local dev)
+- Created src/lib/jwt.ts: JWT signing/verification with bcryptjs password hashing
+- Created src/middleware.ts: auth guards, tenant isolation via headers, rate limiting (60/min general, 10/min auth)
+- Rewrote /api/auth/login: bcrypt + JWT access+refresh tokens
+- Created /api/auth/refresh: token rotation with DB-backed refresh tokens
+- Updated /api/auth/register: bcrypt + JWT, creates TenantSettings
+- Updated /api/admin/auth: bcrypt + JWT super admin tokens
+- Updated src/lib/api.ts: JWT Bearer auth, auto-refresh on 401, 20+ API namespaces
+- Updated src/lib/admin-api.ts: JWT Bearer auth for super admin routes
+- Updated src/lib/store.ts: accessToken/refreshToken state, 4 new View types
+- Updated all auth flows: login-view, registration-wizard, admin-view, page.tsx
+- Created 6 notification API routes (list, unread-count, mark-read, mark-all-read)
+- Created 3 maintenance API routes (list/create, get/update/delete with state machine)
+- Created 5 depreciation API routes (calculate with straight-line + declining balance, history)
+- Created 5 document API routes (upload, list, metadata, download, delete)
+- Created 7 tenant-settings API routes (get/update, branding, WhatsApp, AI config)
+- Created 1 AI chat API route (OpenAI-compatible, per-tenant API key)
+- Created 2 export API routes (assets CSV/JSON, reports CSV/JSON)
+- Created 3 migration API routes (CSV import with column mapping, list, rollback)
+- Created 1 logo upload API route
+- Created 4 new view components: MaintenanceView, NotificationsView, AiAssistantView, MigrationView
+- Updated AppHeader: notification bell with unread badge, quick action buttons
+- Updated Sidebar: 10 navigation items (was 6)
+- Updated page.tsx: routes for all 4 new views
+- Updated seed scripts: maintenance records, notifications, TenantSettings, bcrypt passwords
+- Fixed all 11 TypeScript compilation errors
+- Build verified: ✓ Compiled successfully, 44+ API routes
+- Pushed to GitHub: b803aa6
 
 Stage Summary:
-- Portal: 10-section marketing page with deep navy/teal/gold theme, framer-motion animations
-- Super Admin: admin@zeitgeist.co / super2024 — manages all tenants, billing, accounting
-- Plans: Starter TTD $499, Professional TTD $1,299, Enterprise TTD $2,999
-- Accounting: Chart of accounts, journal entries, trial balance per T&T rules
-- GitHub: https://github.com/comandomorillo2026/AssetHub
-- Demo: admin@demo.com / demo123, slug: pos-municipal-corp
----
-Task ID: 1
-Agent: Main
-Task: PWA + WiPay + Registration Wizard
-
-Work Log:
-- Generated 8 PWA icons (72-512px) using sharp SVG rendering
-- Created public/manifest.json with full PWA manifest (icons, display standalone, theme color)
-- Created public/sw.js service worker with network-first + cache-first strategies
-- Created PWA register component for SW installation
-- Created PWA install prompt component with smart dismissal (visits counter, beforeinstallprompt)
-- Updated layout.tsx with PWA meta tags, viewport config, apple-touch-icon, manifest link
-- Created /api/payments/route.ts for WiPay checkout initiation
-- Created /api/payments/webhook/route.ts for WiPay payment confirmation with auto journal entry
-- Created /api/payments/demo-checkout/route.ts for dev mode WiPay simulation
-- Created registration-wizard.tsx with 5 steps: Org → Account → Plan → WiPay Payment → Success
-- Updated register API to handle plan, billing cycle, phone, address fields
-- Updated store.ts with 'register-wizard' view type
-- Updated portal to navigate to register-wizard instead of register
-- Updated page.tsx to use RegistrationWizard, handle payment_success redirect
-- Updated .gitignore for scripts/, clean ESLint
-- All changes pushed to GitHub (commit 4c270b4)
-
-Stage Summary:
-- PWA fully configured: manifest, SW, icons, install prompt, offline caching
-- WiPay integration: 3 API routes, demo checkout page, webhook auto-accounting
-- Registration wizard: 5-step flow with plan selection (monthly/yearly) and WiPay payment
-- ESLint clean, server compiles and returns HTTP 200
-- Pushed to GitHub: https://github.com/comandomorillo2026/AssetHub.git
+- 61 files changed, 13,620 insertions, 196 deletions
+- 20 database models (PostgreSQL-ready)
+- 44+ API routes (was 29)
+- 4 new frontend views
+- Real JWT auth replacing SHA256 hashes
+- 8 new functional modules delivered
+- Build passes, pushed to GitHub main branch
