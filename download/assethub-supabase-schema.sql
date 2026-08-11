@@ -644,7 +644,7 @@ ALTER TABLE "LedgerEntry" ADD CONSTRAINT "LedgerEntry_ledgerAccountId_fkey"
 -- UPDATED AT TRIGGERS (auto-update updatedAt on every row change)
 -- ============================================================
 
-CREATE OR REPLACE FUNCTION "updateUpdatedAtColumn"()
+CREATE OR REPLACE FUNCTION "update_updatedAt_column"()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW."updatedAt" = CURRENT_TIMESTAMP;
@@ -652,29 +652,25 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DO $$ 
-DECLARE
-    tbl TEXT;
-BEGIN
-    FOR tbl IN SELECT table_name FROM information_schema.tables 
-               WHERE table_schema = 'public' 
-               AND table_name IN (
-                   'SuperAdmin', 'Plan', 'Tenant', 'TenantSettings', 
-                   'Subscription', 'User', 'Category', 'Location', 
-                   'Asset', 'InventorySession', 'SyncQueue', 
-                   'Payment', 'Invoice', 'Maintenance', 
-                   'Document', 'DataMigration', 
-                   'LedgerAccount', 'JournalEntry'
-               )
-    LOOP
-        EXECUTE format('
-            CREATE TRIGGER "update_%s_updatedAt" 
-                BEFORE UPDATE ON "%I" 
-                FOR EACH ROW EXECUTE FUNCTION "updateUpdatedAtColumn"();
-        ', tbl, tbl);
-    END LOOP;
-END;
-$$;
+-- Triggers individuales (sin bloque dinámico que causa problema de comillas)
+CREATE TRIGGER "update_SuperAdmin_updatedAt" BEFORE UPDATE ON "SuperAdmin" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_Plan_updatedAt" BEFORE UPDATE ON "Plan" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_Tenant_updatedAt" BEFORE UPDATE ON "Tenant" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_TenantSettings_updatedAt" BEFORE UPDATE ON "TenantSettings" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_Subscription_updatedAt" BEFORE UPDATE ON "Subscription" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_User_updatedAt" BEFORE UPDATE ON "User" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_Category_updatedAt" BEFORE UPDATE ON "Category" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_Location_updatedAt" BEFORE UPDATE ON "Location" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_Asset_updatedAt" BEFORE UPDATE ON "Asset" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_InventorySession_updatedAt" BEFORE UPDATE ON "InventorySession" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_SyncQueue_updatedAt" BEFORE UPDATE ON "SyncQueue" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_Payment_updatedAt" BEFORE UPDATE ON "Payment" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_Invoice_updatedAt" BEFORE UPDATE ON "Invoice" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_Maintenance_updatedAt" BEFORE UPDATE ON "Maintenance" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_Document_updatedAt" BEFORE UPDATE ON "Document" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_DataMigration_updatedAt" BEFORE UPDATE ON "DataMigration" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_LedgerAccount_updatedAt" BEFORE UPDATE ON "LedgerAccount" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
+CREATE TRIGGER "update_JournalEntry_updatedAt" BEFORE UPDATE ON "JournalEntry" FOR EACH ROW EXECUTE FUNCTION "update_updatedAt_column"();
 
 -- ============================================================
 -- ENABLE ROW LEVEL SECURITY (RLS) - recomendado por Supabase
