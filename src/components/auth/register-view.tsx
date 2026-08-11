@@ -111,7 +111,7 @@ export default function RegisterView() {
         password,
       })
       // Auto-login on success
-      setAuth(res.user, res.token)
+      setAuth(res.user, res.token, '')
       toast.success('Organization created successfully!')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed. Please try again.'

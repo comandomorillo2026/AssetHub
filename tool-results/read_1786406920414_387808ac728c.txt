@@ -1,0 +1,850 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback, useRef } from 'react'
+     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→import { toast } from 'sonner'
+     6→import {
+     7→  Upload,
+     8→  FileSpreadsheet,
+     9→  Database,
+    10→  ArrowRight,
+    11→  Play,
+    12→  RotateCcw,
+    13→  CheckCircle2,
+    14→  XCircle,
+    15→  Clock,
+    16→  Loader2,
+    17→  AlertCircle,
+    18→  History,
+    19→  Download,
+    20→  X,
+    21→  Trash2,
+    22→} from 'lucide-react'
+    23→
+    24→import { useAppStore } from '@/lib/store'
+    25→import { migrationApi } from '@/lib/api'
+    26→
+    27→import { Button } from '@/components/ui/button'
+    28→import {
+    29→  Card,
+    30→  CardContent,
+    31→  CardDescription,
+    32→  CardHeader,
+    33→  CardTitle,
+    34→} from '@/components/ui/card'
+    35→import { Badge } from '@/components/ui/badge'
+    36→import {
+    37→  Table,
+    38→  TableBody,
+    39→  TableCell,
+    40→  TableHead,
+    41→  TableHeader,
+    42→  TableRow,
+    43→} from '@/components/ui/table'
+    44→import {
+    45→  Select,
+    46→  SelectContent,
+    47→  SelectItem,
+    48→  SelectTrigger,
+    49→  SelectValue,
+    50→} from '@/components/ui/select'
+    51→import { Input } from '@/components/ui/input'
+    52→import { Label } from '@/components/ui/label'
+    53→import { Skeleton } from '@/components/ui/skeleton'
+    54→import {
+    55→  AlertDialog,
+    56→  AlertDialogAction,
+    57→  AlertDialogCancel,
+    58→  AlertDialogContent,
+    59→  AlertDialogDescription,
+    60→  AlertDialogFooter,
+    61→  AlertDialogHeader,
+    62→  AlertDialogTitle,
+    63→} from '@/components/ui/alert-dialog'
+    64→import { Progress } from '@/components/ui/progress'
+    65→import { ScrollArea } from '@/components/ui/scroll-area'
+    66→
+    67→// ── Types ───────────────────────────────────────────────────────────────
+    68→
+    69→type EntityType = 'assets' | 'categories' | 'locations' | 'users'
+    70→type MigrationStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'rolled_back'
+    71→
+    72→interface MigrationRecord {
+    73→  id: string
+    74→  sourceType: string
+    75→  entityType: string
+    76→  fileName: string
+    77→  fileSize: number
+    78→  totalRows: number
+    79→  processedRows: number
+    80→  failedRows: number
+    81→  status: MigrationStatus
+    82→  mappingConfig: string
+    83→  errors: string | null
+    84→  startedAt: string | null
+    85→  completedAt: string | null
+    86→  rolledBackAt: string | null
+    87→  createdBy: string | null
+    88→  createdAt: string
+    89→  updatedAt: string
+    90→}
+    91→
+    92→interface ImportError {
+    93→  row: number
+    94→  message: string
+    95→  data?: Record<string, string>
+    96→}
+    97→
+    98→// ── Entity field definitions ────────────────────────────────────────────
+    99→
+   100→const ENTITY_FIELDS: Record<EntityType, { label: string; value: string; required?: boolean }[]> = {
+   101→  assets: [
+   102→    { label: 'Name', value: 'name', required: true },
+   103→    { label: 'Description', value: 'description' },
+   104→    { label: 'Serial Number', value: 'serialNumber' },
+   105→    { label: 'Brand', value: 'brand' },
+   106→    { label: 'Model', value: 'model' },
+   107→    { label: 'Purchase Date', value: 'purchaseDate' },
+   108→    { label: 'Purchase Price', value: 'purchasePrice' },
+   109→    { label: 'Current Value', value: 'currentValue' },
+   110→    { label: 'Status', value: 'status' },
+   111→    { label: 'Condition', value: 'condition' },
+   112→    { label: 'Assigned To', value: 'assignedTo' },
+   113→    { label: 'Category', value: 'categoryId' },
+   114→    { label: 'Location', value: 'locationId' },
+   115→    { label: 'Tag Number', value: 'tagNumber' },
+   116→  ],
+   117→  categories: [
+   118→    { label: 'Name', value: 'name', required: true },
+   119→    { label: 'Code', value: 'code' },
+   120→    { label: 'Color', value: 'color' },
+   121→    { label: 'Icon', value: 'icon' },
+   122→  ],
+   123→  locations: [
+   124→    { label: 'Name', value: 'name', required: true },
+   125→    { label: 'Code', value: 'code' },
+   126→    { label: 'Address', value: 'address' },
+   127→  ],
+   128→  users: [
+   129→    { label: 'Name', value: 'name', required: true },
+   130→    { label: 'Email', value: 'email', required: true },
+   131→    { label: 'Role', value: 'role' },
+   132→    { label: 'Phone', value: 'phone' },
+   133→    { label: 'Department', value: 'department' },
+   134→    { label: 'Job Title', value: 'jobTitle' },
+   135→  ],
+   136→}
+   137→
+   138→// Auto-matching patterns for column mapping
+   139→const AUTO_MAP_PATTERNS: Record<string, string[]> = {
+   140→  name: ['name', 'asset_name', 'asset name', 'item', 'item_name', 'item name', 'category_name', 'location_name', 'full_name', 'full name', 'display_name'],
+   141→  description: ['description', 'desc', 'details', 'notes'],
+   142→  serialNumber: ['serial', 'serial_number', 'serial number', 'serialnumber', 'serial_no', 'serial no'],
+   143→  brand: ['brand', 'manufacturer', 'make', 'vendor'],
+   144→  model: ['model', 'model_number', 'model number', 'model_no'],
+   145→  purchaseDate: ['purchase_date', 'purchase date', 'date_purchased', 'date purchased', 'acquired_date', 'acquired'],
+   146→  purchasePrice: ['purchase_price', 'purchase price', 'cost', 'price', 'amount', 'value'],
+   147→  currentValue: ['current_value', 'current value', 'book_value', 'book value'],
+   148→  status: ['status', 'condition_status', 'asset_status'],
+   149→  condition: ['condition', 'physical_condition'],
+   150→  assignedTo: ['assigned_to', 'assigned to', 'assigned', 'user', 'custodian', 'responsible'],
+   151→  categoryId: ['category', 'category_id', 'category_name'],
+   152→  locationId: ['location', 'location_id', 'location_name', 'site', 'building'],
+   153→  tagNumber: ['tag', 'tag_number', 'tag number', 'tag_no', 'asset_tag', 'asset_tag_number', 'barcode'],
+   154→  code: ['code', 'category_code', 'category code', 'location_code', 'location code'],
+   155→  color: ['color', 'hex'],
+   156→  icon: ['icon'],
+   157→  address: ['address', 'location_address'],
+   158→  email: ['email', 'email_address', 'email address'],
+   159→  role: ['role', 'user_role', 'position', 'job_title'],
+   160→  phone: ['phone', 'phone_number', 'phone number', 'mobile', 'telephone'],
+   161→  department: ['department', 'dept'],
+   162→  jobTitle: ['job_title', 'job title', 'title', 'position'],
+   163→}
+   164→
+   165→const ENTITY_LABELS: Record<EntityType, string> = {
+   166→  assets: 'Assets',
+   167→  categories: 'Categories',
+   168→  locations: 'Locations',
+   169→  users: 'Users',
+   170→}
+   171→
+   172→// ── Helpers ─────────────────────────────────────────────────────────────
+   173→
+   174→function autoMapColumns(csvHeaders: string[], entityType: EntityType): Record<string, string> {
+   175→  const mapping: Record<string, string> = {}
+   176→  const fields = ENTITY_FIELDS[entityType]
+   177→
+   178→  for (const field of fields) {
+   179→    const patterns = AUTO_MAP_PATTERNS[field.value] || []
+   180→    for (const header of csvHeaders) {
+   181→      const normalized = header.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_')
+   182→      if (patterns.some(p => p === normalized || p.replace(/_/g, ' ') === header.toLowerCase())) {
+   183→        mapping[field.value] = header
+   184→        break
+   185→      }
+   186→    }
+   187→  }
+   188→  return mapping
+   189→}
+   190→
+   191→function formatBytes(bytes: number): string {
+   192→  if (bytes < 1024) return `${bytes} B`
+   193→  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+   194→  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+   195→}
+   196→
+   197→function formatDate(dateStr: string | null): string {
+   198→  if (!dateStr) return '—'
+   199→  return new Date(dateStr).toLocaleDateString('en-US', {
+   200→    month: 'short',
+   201→    day: 'numeric',
+   202→    year: 'numeric',
+   203→    hour: '2-digit',
+   204→    minute: '2-digit',
+   205→  })
+   206→}
+   207→
+   208→function statusBadge(status: MigrationStatus) {
+   209→  const config: Record<MigrationStatus, { label: string; className: string }> = {
+   210→    completed: { label: 'Completed', className: 'bg-green-100 text-green-700 border-green-200' },
+   211→    failed: { label: 'Failed', className: 'bg-red-100 text-red-700 border-red-200' },
+   212→    processing: { label: 'Processing', className: 'bg-amber-100 text-amber-700 border-amber-200' },
+   213→    pending: { label: 'Pending', className: 'bg-slate-100 text-slate-600 border-slate-200' },
+   214→    rolled_back: { label: 'Rolled Back', className: 'bg-blue-100 text-blue-700 border-blue-200' },
+   215→  }
+   216→  const c = config[status] || config.pending
+   217→  return <Badge variant="outline" className={c.className}>{c.label}</Badge>
+   218→}
+   219→
+   220→function parseCSVHeaders(text: string): string[] {
+   221→  const firstLine = text.split(/\r?\n/)[0] || ''
+   222→  const headers: string[] = []
+   223→  let inQuotes = false
+   224→  let current = ''
+   225→  for (const ch of firstLine) {
+   226→    if (inQuotes) {
+   227→      if (ch === '"' && current.endsWith('"')) {
+   228→        inQuotes = false
+   229→      } else {
+   230→        current += ch
+   231→      }
+   232→    } else {
+   233→      if (ch === '"') {
+   234→        inQuotes = true
+   235→      } else if (ch === ',') {
+   236→        headers.push(current.trim())
+   237→        current = ''
+   238→      } else {
+   239→        current += ch
+   240→      }
+   241→    }
+   242→  }
+   243→  if (current.trim()) headers.push(current.trim())
+   244→  return headers
+   245→}
+   246→
+   247→// ── Component ───────────────────────────────────────────────────────────
+   248→
+   249→export default function MigrationView() {
+   250→  // ── State: Import ──
+   251→  const [entityType, setEntityType] = useState<EntityType>('assets')
+   252→  const [file, setFile] = useState<File | null>(null)
+   253→  const [csvHeaders, setCsvHeaders] = useState<string[]>([])
+   254→  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({})
+   255→  const [showMapping, setShowMapping] = useState(false)
+   256→  const [isImporting, setIsImporting] = useState(false)
+   257→  const [importProgress, setImportProgress] = useState(0)
+   258→  const [importResult, setImportResult] = useState<MigrationRecord | null>(null)
+   259→  const [importErrors, setImportErrors] = useState<ImportError[]>([])
+   260→
+   261→  // ── State: History ──
+   262→  const [migrations, setMigrations] = useState<MigrationRecord[]>([])
+   263→  const [historyLoading, setHistoryLoading] = useState(true)
+   264→  const [rollbackId, setRollbackId] = useState<string | null>(null)
+   265→  const [isRollingBack, setIsRollingBack] = useState(false)
+   266→
+   267→  // Drag state
+   268→  const [isDragOver, setIsDragOver] = useState(false)
+   269→  const fileInputRef = useRef<HTMLInputElement>(null)
+   270→
+   271→  // ── Fetch migration history ──
+   272→  const fetchHistory = useCallback(async () => {
+   273→    try {
+   274→      const data = await migrationApi.list()
+   275→      setMigrations(data.data || [])
+   276→    } catch (err) {
+   277→      toast.error(err instanceof Error ? err.message : 'Failed to load migration history')
+   278→    } finally {
+   279→      setHistoryLoading(false)
+   280→    }
+   281→  }, [])
+   282→
+   283→  useEffect(() => {
+   284→    fetchHistory()
+   285→  }, [fetchHistory])
+   286→
+   287→  // ── Process uploaded file ──
+   288→  const processFile = useCallback((selectedFile: File) => {
+   289→    if (!selectedFile.name.endsWith('.csv')) {
+   290→      toast.error('Only CSV files are supported')
+   291→      return
+   292→    }
+   293→    setFile(selectedFile)
+   294→    setImportResult(null)
+   295→    setImportErrors([])
+   296→
+   297→    const reader = new FileReader()
+   298→    reader.onload = (e) => {
+   299→      const text = e.target?.result as string
+   300→      const headers = parseCSVHeaders(text)
+   301→      setCsvHeaders(headers)
+   302→      const mapping = autoMapColumns(headers, entityType)
+   303→      setColumnMapping(mapping)
+   304→      setShowMapping(true)
+   305→    }
+   306→    reader.onerror = () => {
+   307→      toast.error('Failed to read file')
+   308→    }
+   309→    reader.readAsText(selectedFile)
+   310→  }, [entityType])
+   311→
+   312→  // ── Handle entity type change ──
+   313→  const handleEntityTypeChange = (value: string) => {
+   314→    const type = value as EntityType
+   315→    setEntityType(type)
+   316→    setImportResult(null)
+   317→    setImportErrors([])
+   318→    if (file) {
+   319→      const reader = new FileReader()
+   320→      reader.onload = (e) => {
+   321→        const text = e.target?.result as string
+   322→        const headers = parseCSVHeaders(text)
+   323→        setCsvHeaders(headers)
+   324→        const mapping = autoMapColumns(headers, type)
+   325→        setColumnMapping(mapping)
+   326→      }
+   327→      reader.readAsText(file)
+   328→    } else {
+   329→      setCsvHeaders([])
+   330→      setColumnMapping({})
+   331→      setShowMapping(false)
+   332→    }
+   333→  }
+   334→
+   335→  // ── Drag & drop handlers ──
+   336→  const handleDragOver = (e: React.DragEvent) => {
+   337→    e.preventDefault()
+   338→    setIsDragOver(true)
+   339→  }
+   340→
+   341→  const handleDragLeave = (e: React.DragEvent) => {
+   342→    e.preventDefault()
+   343→    setIsDragOver(false)
+   344→  }
+   345→
+   346→  const handleDrop = (e: React.DragEvent) => {
+   347→    e.preventDefault()
+   348→    setIsDragOver(false)
+   349→    const droppedFile = e.dataTransfer.files[0]
+   350→    if (droppedFile) processFile(droppedFile)
+   351→  }
+   352→
+   353→  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+   354→    const selectedFile = e.target.files?.[0]
+   355→    if (selectedFile) processFile(selectedFile)
+   356→  }
+   357→
+   358→  // ── Update mapping ──
+   359→  const updateMapping = (targetField: string, sourceColumn: string) => {
+   360→    setColumnMapping((prev) => {
+   361→      const next = { ...prev }
+   362→      // Remove any other mapping pointing to the same source column
+   363→      for (const [key, val] of Object.entries(next)) {
+   364→        if (val === sourceColumn && key !== targetField) {
+   365→          delete next[key]
+   366→        }
+   367→      }
+   368→      if (sourceColumn === '__none__') {
+   369→        delete next[targetField]
+   370→      } else {
+   371→        next[targetField] = sourceColumn
+   372→      }
+   373→      return next
+   374→    })
+   375→  }
+   376→
+   377→  // ── Start import ──
+   378→  const handleImport = async () => {
+   379→    if (!file) {
+   380→      toast.error('Please select a file first')
+   381→      return
+   382→    }
+   383→
+   384→    setIsImporting(true)
+   385→    setImportProgress(10)
+   386→    setImportResult(null)
+   387→    setImportErrors([])
+   388→
+   389→    try {
+   390→      const formData = new FormData()
+   391→      formData.append('file', file)
+   392→      formData.append('entityType', entityType)
+   393→      formData.append('mappingConfig', JSON.stringify(columnMapping))
+   394→
+   395→      setImportProgress(30)
+   396→      const data = await migrationApi.importCSV(formData)
+   397→      setImportProgress(100)
+   398→
+   399→      const migration = data.data as MigrationRecord
+   400→      setImportResult(migration)
+   401→
+   402→      // Parse errors if any
+   403→      if (migration.errors) {
+   404→        try {
+   405→          const parsed = JSON.parse(migration.errors)
+   406→          setImportErrors(Array.isArray(parsed) ? parsed : [])
+   407→        } catch {
+   408→          setImportErrors([])
+   409→        }
+   410→      }
+   411→
+   412→      if (migration.status === 'completed') {
+   413→        toast.success(`Import completed: ${migration.processedRows} rows processed successfully`)
+   414→      } else if (migration.status === 'failed') {
+   415→        toast.error('Import failed. Check the error details below.')
+   416→      } else {
+   417→        toast.info(`Import finished with status: ${migration.status}`)
+   418→      }
+   419→
+   420→      // Refresh history
+   421→      fetchHistory()
+   422→    } catch (err) {
+   423→      setImportProgress(0)
+   424→      toast.error(err instanceof Error ? err.message : 'Import failed')
+   425→    } finally {
+   426→      setIsImporting(false)
+   427→    }
+   428→  }
+   429→
+   430→  // ── Rollback ──
+   431→  const handleRollback = async () => {
+   432→    if (!rollbackId) return
+   433→    setIsRollingBack(true)
+   434→    try {
+   435→      const data = await migrationApi.rollback(rollbackId)
+   436→      toast.success(data.message || 'Migration rolled back successfully')
+   437→      setRollbackId(null)
+   438→      fetchHistory()
+   439→    } catch (err) {
+   440→      toast.error(err instanceof Error ? err.message : 'Rollback failed')
+   441→    } finally {
+   442→      setIsRollingBack(false)
+   443→    }
+   444→  }
+   445→
+   446→  // ── Reset import form ──
+   447→  const resetForm = () => {
+   448→    setFile(null)
+   449→    setCsvHeaders([])
+   450→    setColumnMapping({})
+   451→    setShowMapping(false)
+   452→    setImportResult(null)
+   453→    setImportErrors([])
+   454→    setImportProgress(0)
+   455→    if (fileInputRef.current) fileInputRef.current.value = ''
+   456→  }
+   457→
+   458→  // ── Render ──
+   459→  return (
+   460→    <div className="flex h-full flex-col gap-6 overflow-y-auto p-4 md:p-6">
+   461→      {/* Header */}
+   462→      <div>
+   463→        <h1 className="text-xl font-semibold text-foreground">Data Migration</h1>
+   464→        <p className="mt-1 text-sm text-muted-foreground">
+   465→          Import data from CSV files into your AssetHub system. Map columns, review, and track import history.
+   466→        </p>
+   467→      </div>
+   468→
+   469→      {/* Section 1: Import Data */}
+   470→      <Card>
+   471→        <CardHeader className="pb-4">
+   472→          <div className="flex items-center gap-2">
+   473→            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0f766e]/10">
+   474→              <Upload className="h-4 w-4 text-[#0f766e]" />
+   475→            </div>
+   476→            <div>
+   477→              <CardTitle className="text-base">Import Data</CardTitle>
+   478→              <CardDescription>Upload a CSV file and map columns to target fields</CardDescription>
+   479→            </div>
+   480→          </div>
+   481→        </CardHeader>
+   482→        <CardContent className="space-y-5">
+   483→          {/* Entity type selector */}
+   484→          <div className="space-y-2">
+   485→            <Label className="text-sm font-medium">Entity Type</Label>
+   486→            <Select value={entityType} onValueChange={handleEntityTypeChange}>
+   487→              <SelectTrigger className="w-full sm:w-64">
+   488→                <SelectValue />
+   489→              </SelectTrigger>
+   490→              <SelectContent>
+   491→                {(Object.keys(ENTITY_FIELDS) as EntityType[]).map((type) => (
+   492→                  <SelectItem key={type} value={type}>
+   493→                    <div className="flex items-center gap-2">
+   494→                      {type === 'assets' && <FileSpreadsheet className="h-3.5 w-3.5 text-muted-foreground" />}
+   495→                      {type === 'categories' && <Database className="h-3.5 w-3.5 text-muted-foreground" />}
+   496→                      {type === 'locations' && <Database className="h-3.5 w-3.5 text-muted-foreground" />}
+   497→                      {type === 'users' && <Database className="h-3.5 w-3.5 text-muted-foreground" />}
+   498→                      {ENTITY_LABELS[type]}
+   499→                    </div>
+   500→                  </SelectItem>
+   501→                ))}
+   502→              </SelectContent>
+   503→            </Select>
+   504→          </div>
+   505→
+   506→          {/* Upload area */}
+   507→          <div className="space-y-2">
+   508→            <Label className="text-sm font-medium">CSV File</Label>
+   509→            <div
+   510→              onDragOver={handleDragOver}
+   511→              onDragLeave={handleDragLeave}
+   512→              onDrop={handleDrop}
+   513→              onClick={() => fileInputRef.current?.click()}
+   514→              className={`relative flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-8 transition-colors ${
+   515→                isDragOver
+   516→                  ? 'border-[#0f766e] bg-[#0f766e]/5'
+   517→                  : file
+   518→                    ? 'border-green-300 bg-green-50/50'
+   519→                    : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-slate-50'
+   520→              }`}
+   521→            >
+   522→              <input
+   523→                ref={fileInputRef}
+   524→                type="file"
+   525→                accept=".csv"
+   526→                className="hidden"
+   527→                onChange={handleFileChange}
+   528→              />
+   529→              {file ? (
+   530→                <>
+   531→                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+   532→                    <CheckCircle2 className="h-6 w-6 text-green-600" />
+   533→                  </div>
+   534→                  <div className="text-center">
+   535→                    <p className="text-sm font-medium text-foreground">{file.name}</p>
+   536→                    <p className="text-xs text-muted-foreground">{formatBytes(file.size)}</p>
+   537→                  </div>
+   538→                  <button
+   539→                    onClick={(e) => { e.stopPropagation(); resetForm() }}
+   540→                    className="absolute right-3 top-3 rounded-full p-1 text-muted-foreground hover:bg-slate-200 hover:text-foreground"
+   541→                  >
+   542→                    <X className="h-4 w-4" />
+   543→                  </button>
+   544→                </>
+   545→              ) : (
+   546→                <>
+   547→                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
+   548→                    <Upload className="h-6 w-6 text-slate-400" />
+   549→                  </div>
+   550→                  <div className="text-center">
+   551→                    <p className="text-sm font-medium text-foreground">
+   552→                      {isDragOver ? 'Drop your file here' : 'Drag & drop a CSV file here'}
+   553→                    </p>
+   554→                    <p className="mt-1 text-xs text-muted-foreground">or click to browse</p>
+   555→                  </div>
+   556→                </>
+   557→              )}
+   558→            </div>
+   559→          </div>
+   560→
+   561→          {/* Column mapping */}
+   562→          <AnimatePresence>
+   563→            {showMapping && csvHeaders.length > 0 && (
+   564→              <motion.div
+   565→                initial={{ opacity: 0, height: 0 }}
+   566→                animate={{ opacity: 1, height: 'auto' }}
+   567→                exit={{ opacity: 0, height: 0 }}
+   568→                transition={{ duration: 0.2 }}
+   569→              >
+   570→                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+   571→                  <div className="mb-3 flex items-center justify-between">
+   572→                    <div className="flex items-center gap-2">
+   573→                      <ArrowRight className="h-4 w-4 text-[#0f766e]" />
+   574→                      <span className="text-sm font-medium text-foreground">Column Mapping</span>
+   575→                    </div>
+   576→                    <span className="text-xs text-muted-foreground">
+   577→                      {csvHeaders.length} columns detected · {Object.keys(columnMapping).length} mapped
+   578→                    </span>
+   579→                  </div>
+   580→
+   581→                  <ScrollArea className="max-h-64">
+   582→                    <div className="space-y-2 pr-2">
+   583→                      {ENTITY_FIELDS[entityType].map((field) => (
+   584→                        <div key={field.value} className="flex items-center gap-3">
+   585→                          <span className="w-32 shrink-0 truncate text-right text-sm text-muted-foreground">
+   586→                            {field.label}
+   587→                            {field.required && <span className="ml-0.5 text-red-400">*</span>}
+   588→                          </span>
+   589→                          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300" />
+   590→                          <Select
+   591→                            value={columnMapping[field.value] || '__none__'}
+   592→                            onValueChange={(val) => updateMapping(field.value, val)}
+   593→                          >
+   594→                            <SelectTrigger className="h-8 flex-1 text-xs">
+   595→                              <SelectValue placeholder="— Not mapped —" />
+   596→                            </SelectTrigger>
+   597→                            <SelectContent>
+   598→                              <SelectItem value="__none__">— Not mapped —</SelectItem>
+   599→                              {csvHeaders.map((header) => (
+   600→                                <SelectItem key={header} value={header}>
+   601→                                  {header}
+   602→                                </SelectItem>
+   603→                              ))}
+   604→                            </SelectContent>
+   605→                          </Select>
+   606→                        </div>
+   607→                      ))}
+   608→                    </div>
+   609→                  </ScrollArea>
+   610→                </div>
+   611→              </motion.div>
+   612→            )}
+   613→          </AnimatePresence>
+   614→
+   615→          {/* Import progress */}
+   616→          {isImporting && (
+   617→            <motion.div
+   618→              initial={{ opacity: 0, y: 8 }}
+   619→              animate={{ opacity: 1, y: 0 }}
+   620→              className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4"
+   621→            >
+   622→              <div className="flex items-center gap-2">
+   623→                <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
+   624→                <span className="text-sm font-medium text-amber-800">Importing data...</span>
+   625→              </div>
+   626→              <Progress value={importProgress} className="h-2 bg-amber-100" />
+   627→              <p className="text-xs text-amber-600">Please wait while your data is being processed.</p>
+   628→            </motion.div>
+   629→          )}
+   630→
+   631→          {/* Import results */}
+   632→          <AnimatePresence>
+   633→            {importResult && !isImporting && (
+   634→              <motion.div
+   635→                initial={{ opacity: 0, y: 8 }}
+   636→                animate={{ opacity: 1, y: 0 }}
+   637→                exit={{ opacity: 0, y: -8 }}
+   638→              >
+   639→                <div className={`rounded-xl border p-4 ${
+   640→                  importResult.status === 'completed'
+   641→                    ? 'border-green-200 bg-green-50'
+   642→                    : 'border-red-200 bg-red-50'
+   643→                }`}>
+   644→                  <div className="flex items-start gap-3">
+   645→                    {importResult.status === 'completed' ? (
+   646→                      <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+   647→                    ) : (
+   648→                      <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
+   649→                    )}
+   650→                    <div className="flex-1">
+   651→                      <h3 className={`text-sm font-semibold ${
+   652→                        importResult.status === 'completed' ? 'text-green-800' : 'text-red-800'
+   653→                      }`}>
+   654→                        {importResult.status === 'completed' ? 'Import Completed' : 'Import Issues Found'}
+   655→                      </h3>
+   656→                      <div className="mt-2 flex flex-wrap gap-4 text-sm">
+   657→                        <span className={importResult.processedRows > 0 ? 'text-green-700' : 'text-muted-foreground'}>
+   658→                          <strong>{importResult.processedRows}</strong> successful
+   659→                        </span>
+   660→                        <span className={importResult.failedRows > 0 ? 'text-red-600' : 'text-muted-foreground'}>
+   661→                          <strong>{importResult.failedRows}</strong> failed
+   662→                        </span>
+   663→                        <span className="text-muted-foreground">
+   664→                          <strong>{importResult.totalRows}</strong> total
+   665→                        </span>
+   666→                      </div>
+   667→
+   668→                      {/* Error list */}
+   669→                      {importErrors.length > 0 && (
+   670→                        <div className="mt-3">
+   671→                          <button
+   672→                            onClick={() => {
+   673→                              const el = document.getElementById('import-errors')
+   674→                              el?.classList.toggle('hidden')
+   675→                            }}
+   676→                            className="text-xs font-medium text-red-600 hover:text-red-700"
+   677→                          >
+   678→                            {importErrors.length} error{importErrors.length > 1 ? 's' : ''} — click to {document.getElementById('import-errors')?.classList.contains('hidden') ? 'show' : 'hide'}
+   679→                          </button>
+   680→                          <div id="import-errors" className="mt-2 hidden">
+   681→                            <ScrollArea className="max-h-48 rounded-lg border border-red-200 bg-white">
+   682→                              <div className="space-y-1 p-2">
+   683→                                {importErrors.slice(0, 50).map((err, idx) => (
+   684→                                  <div key={idx} className="flex items-start gap-2 rounded px-2 py-1 text-xs">
+   685→                                    <span className="shrink-0 font-mono text-red-400">Row {err.row}:</span>
+   686→                                    <span className="text-red-700">{err.message}</span>
+   687→                                  </div>
+   688→                                ))}
+   689→                                {importErrors.length > 50 && (
+   690→                                  <p className="px-2 py-1 text-xs text-muted-foreground">
+   691→                                    ...and {importErrors.length - 50} more errors
+   692→                                  </p>
+   693→                                )}
+   694→                              </div>
+   695→                            </ScrollArea>
+   696→                          </div>
+   697→                        </div>
+   698→                      )}
+   699→                    </div>
+   700→                  </div>
+   701→                </div>
+   702→              </motion.div>
+   703→            )}
+   704→          </AnimatePresence>
+   705→
+   706→          {/* Import button */}
+   707→          <div className="flex items-center gap-3">
+   708→            <Button
+   709→              className="bg-[#0f766e] text-white hover:bg-[#0d6560]"
+   710→              disabled={!file || isImporting}
+   711→              onClick={handleImport}
+   712→            >
+   713→              {isImporting ? (
+   714→                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+   715→              ) : (
+   716→                <Play className="mr-2 h-4 w-4" />
+   717→              )}
+   718→              {isImporting ? 'Importing...' : 'Start Import'}
+   719→            </Button>
+   720→            {file && !isImporting && (
+   721→              <Button variant="ghost" onClick={resetForm}>
+   722→                <Trash2 className="mr-2 h-4 w-4" />
+   723→                Clear
+   724→              </Button>
+   725→            )}
+   726→          </div>
+   727→        </CardContent>
+   728→      </Card>
+   729→
+   730→      {/* Section 2: Import History */}
+   731→      <Card>
+   732→        <CardHeader className="pb-4">
+   733→          <div className="flex items-center gap-2">
+   734→            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0f766e]/10">
+   735→              <History className="h-4 w-4 text-[#0f766e]" />
+   736→            </div>
+   737→            <div>
+   738→              <CardTitle className="text-base">Import History</CardTitle>
+   739→              <CardDescription>View and manage past data imports</CardDescription>
+   740→            </div>
+   741→          </div>
+   742→        </CardHeader>
+   743→        <CardContent>
+   744→          {historyLoading ? (
+   745→            <div className="space-y-3">
+   746→              {Array.from({ length: 4 }).map((_, i) => (
+   747→                <Skeleton key={i} className="h-12 w-full rounded-lg" />
+   748→              ))}
+   749→            </div>
+   750→          ) : migrations.length === 0 ? (
+   751→            <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+   752→              <Database className="h-10 w-10 text-slate-300" />
+   753→              <p className="text-sm text-muted-foreground">No import history yet</p>
+   754→              <p className="text-xs text-muted-foreground">
+   755→                Upload a CSV file above to get started
+   756→              </p>
+   757→            </div>
+   758→          ) : (
+   759→            <div className="rounded-lg border">
+   760→              <div className="overflow-x-auto">
+   761→                <Table>
+   762→                  <TableHeader>
+   763→                    <TableRow className="bg-slate-50/80">
+   764→                      <TableHead className="text-xs font-medium">File Name</TableHead>
+   765→                      <TableHead className="text-xs font-medium">Entity</TableHead>
+   766→                      <TableHead className="text-xs font-medium">Status</TableHead>
+   767→                      <TableHead className="text-xs font-medium text-right">Rows</TableHead>
+   768→                      <TableHead className="hidden text-xs font-medium sm:table-cell">Date</TableHead>
+   769→                      <TableHead className="text-right text-xs font-medium">Actions</TableHead>
+   770→                    </TableRow>
+   771→                  </TableHeader>
+   772→                  <TableBody>
+   773→                    {migrations.map((m) => (
+   774→                      <TableRow key={m.id} className="group">
+   775→                        <TableCell>
+   776→                          <div className="flex items-center gap-2">
+   777→                            <FileSpreadsheet className="h-4 w-4 shrink-0 text-slate-400" />
+   778→                            <div className="min-w-0">
+   779→                              <p className="max-w-[200px] truncate text-sm font-medium">{m.fileName}</p>
+   780→                              <p className="text-xs text-muted-foreground">{formatBytes(m.fileSize)}</p>
+   781→                            </div>
+   782→                          </div>
+   783→                        </TableCell>
+   784→                        <TableCell>
+   785→                          <Badge variant="outline" className="capitalize">
+   786→                            {m.entityType}
+   787→                          </Badge>
+   788→                        </TableCell>
+   789→                        <TableCell>{statusBadge(m.status)}</TableCell>
+   790→                        <TableCell className="text-right text-sm">
+   791→                          <span className={m.failedRows > 0 ? 'text-red-600' : ''}>
+   792→                            {m.processedRows}
+   793→                          </span>
+   794→                          <span className="text-muted-foreground">/{m.totalRows}</span>
+   795→                        </TableCell>
+   796→                        <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
+   797→                          {formatDate(m.createdAt)}
+   798→                        </TableCell>
+   799→                        <TableCell className="text-right">
+   800→                          {m.status === 'completed' && (
+   801→                            <Button
+   802→                              variant="ghost"
+   803→                              size="sm"
+   804→                              className="text-red-600 hover:bg-red-50 hover:text-red-700"
+   805→                              onClick={() => setRollbackId(m.id)}
+   806→                            >
+   807→                              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+   808→                              <span className="hidden sm:inline">Rollback</span>
+   809→                            </Button>
+   810→                          )}
+   811→                        </TableCell>
+   812→                      </TableRow>
+   813→                    ))}
+   814→                  </TableBody>
+   815→                </Table>
+   816→              </div>
+   817→            </div>
+   818→          )}
+   819→        </CardContent>
+   820→      </Card>
+   821→
+   822→      {/* Rollback confirmation dialog */}
+   823→      <AlertDialog open={!!rollbackId} onOpenChange={(open) => !open && setRollbackId(null)}>
+   824→        <AlertDialogContent>
+   825→          <AlertDialogHeader>
+   826→            <AlertDialogTitle>Rollback Import</AlertDialogTitle>
+   827→            <AlertDialogDescription>
+   828→              Are you sure you want to rollback this import? This is a soft rollback — the imported
+   829→              records may still exist in the system. You may need to manually clean up the data.
+   830→            </AlertDialogDescription>
+   831→          </AlertDialogHeader>
+   832→          <AlertDialogFooter>
+   833→            <AlertDialogCancel disabled={isRollingBack}>Cancel</AlertDialogCancel>
+   834→            <AlertDialogAction
+   835→              onClick={handleRollback}
+   836→              disabled={isRollingBack}
+   837→              className="bg-red-600 text-white hover:bg-red-700"
+   838→            >
+   839→              {isRollingBack ? (
+   840→                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+   841→              ) : null}
+   842→              {isRollingBack ? 'Rolling back...' : 'Rollback Import'}
+   843→            </AlertDialogAction>
+   844→          </AlertDialogFooter>
+   845→        </AlertDialogContent>
+   846→      </AlertDialog>
+   847→    </div>
+   848→  )
+   849→}
+   850→

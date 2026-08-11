@@ -28,14 +28,14 @@ model SuperAdmin {
 
 model Plan {
   id          String   @id @default(cuid())
-  name        String   // Starter, Professional, Enterprise
+  name        String
   slug        String   @unique
-  priceMonthly Float    // in TTD
-  priceYearly Float?   // in TTD (optional annual discount)
+  priceMonthly Float
+  priceYearly Float?
   maxAssets   Int
   maxUsers    Int
   maxLocations Int
-  features    String   // JSON array of feature strings
+  features    String   // JSON array
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
@@ -50,10 +50,10 @@ model Subscription {
   tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   planId          String
   plan            Plan     @relation(fields: [planId], references: [id])
-  status          String   @default("active") // active, past_due, cancelled, trial
+  status          String   @default("active")
   currentPeriodStart DateTime @default(now())
   currentPeriodEnd   DateTime
-  billingCycle    String   @default("monthly") // monthly, yearly
+  billingCycle    String   @default("monthly")
   nextBillingDate DateTime
   cancelledAt     DateTime?
   createdAt       DateTime @default(now())
@@ -71,9 +71,9 @@ model Payment {
   tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   amount          Float
   currency        String   @default("TTD")
-  method          String   @default("manual") // manual, bank_transfer, credit_card, online
-  status          String   @default("pending") // pending, completed, failed, refunded
-  reference        String?  // bank reference / receipt number
+  method          String   @default("manual")
+  status          String   @default("pending")
+  reference        String?
   paidAt          DateTime?
   notes           String?
   createdAt       DateTime @default(now())
@@ -89,7 +89,7 @@ model Invoice {
   tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   amount          Float
   currency        String   @default("TTD")
-  status          String   @default("pending") // pending, paid, overdue, cancelled
+  status          String   @default("pending")
   issuedAt        DateTime @default(now())
   dueAt           DateTime
   paidAt          DateTime?
@@ -104,28 +104,35 @@ model Invoice {
 
 model LedgerAccount {
   id          String   @id @default(cuid())
-  code        String   // e.g. 1000, 1200, 2000 per T&T chart of accounts
-  name        String   // e.g. "Cash at Bank", "Accounts Receivable"
-  accountType String   // asset, liability, equity, revenue, expense
+  tenantId    String?
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  code        String
+  name        String
+  accountType String
   description String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   entries     LedgerEntry[]
+
+  @@unique([code, tenantId])
 }
 
 model JournalEntry {
   id          String   @id @default(cuid())
-  number      String   @unique // e.g. JE-2026-001
+  number      String
   description String
   date        DateTime
-  status      String   @default("draft") // draft, posted, reversed
+  status      String   @default("draft")
   tenantId    String?
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   entries     LedgerEntry[]
+
+  @@unique([number])
 }
 
 model LedgerEntry {
@@ -141,14 +148,14 @@ model LedgerEntry {
 }
 
 /* ═══════════════════════════════════════════════════
-   TENANT (institution) — the "apartment"
+   TENANT (institution)
    ═══════════════════════════════════════════════════ */
 
 model Tenant {
   id          String   @id @default(cuid())
   name        String
   slug        String   @unique
-  type        String   @default("private") // government, private, education, insurance, credit_union
+  type        String   @default("private")
   country     String   @default("Trinidad and Tobago")
   currency    String   @default("TTD")
   logo        String?
@@ -165,6 +172,7 @@ model Tenant {
   updatedAt   DateTime @updatedAt
 
   subscription Subscription?
+  settings     TenantSettings?
   users       User[]
   assets      Asset[]
   categories  Category[]
@@ -172,16 +180,93 @@ model Tenant {
   inventorySessions InventorySession[]
   payments    Payment[]
   invoices    Invoice[]
+  notifications Notification[]
+  maintenances Maintenance[]
+  documents   Document[]
+  depreciations Depreciation[]
+  dataMigrations DataMigration[]
+  journalEntries JournalEntry[]
+  ledgerAccounts LedgerAccount[]
 }
+
+/* ═══════════════════════════════════════════════════
+   TENANT SETTINGS (branding, integrations, AI, WhatsApp)
+   ═══════════════════════════════════════════════════ */
+
+model TenantSettings {
+  id          String   @id @default(cuid())
+  tenantId    String   @unique
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Branding
+  primaryColor    String   @default("#0f766e")
+  secondaryColor  String   @default("#14b8a6")
+  accentColor     String   @default("#f59e0b")
+  fontFamily      String   @default("Inter")
+  logoUrl         String?
+  faviconUrl      String?
+  customDomain    String?
+  loginBackground String?
+
+  // WhatsApp Business API
+  whatsappEnabled     Boolean  @default(false)
+  whatsappApiUrl      String?
+  whatsappApiToken    String?
+  whatsappPhoneNumber  String?
+  whatsappTemplateLang String  @default("en")
+
+  // AI Assistant
+  aiEnabled         Boolean  @default(false)
+  aiProvider        String   @default("openai") // openai, anthropic, google
+  aiApiKey          String?
+  aiModel           String   @default("gpt-4o-mini")
+  aiTemperature     Float    @default(0.7)
+  aiSystemPrompt    String   @default("You are a helpful asset management assistant for {tenantName}. Help users manage their assets, run inventory checks, and generate reports.")
+
+  // Notifications
+  emailNotificationsEnabled  Boolean @default(true)
+  whatsappNotificationsEnabled Boolean @default(false)
+  inAppNotificationsEnabled  Boolean @default(true)
+  lowStockAlertsEnabled      Boolean @default(false)
+  maintenanceAlertsEnabled   Boolean @default(true)
+  warrantyAlertsEnabled      Boolean @default(true)
+
+  // Inventory
+  defaultDepreciationMethod String @default("straight_line") // straight_line, declining_balance
+  defaultUsefulLifeYears   Int    @default(5)
+  autoGenerateQRCodes      Boolean @default(true)
+  requirePhotoOnCreate     Boolean @default(false)
+
+  // Security
+  sessionTimeoutMinutes Int @default(60)
+  requireTwoFactor     Boolean @default(false)
+  passwordMinLength    Int    @default(8)
+  passwordRequireUpper Boolean @default(true)
+  passwordRequireNumber Boolean @default(true)
+  passwordRequireSpecial Boolean @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/* ═══════════════════════════════════════════════════
+   USER (with JWT auth)
+   ═══════════════════════════════════════════════════ */
 
 model User {
   id            String   @id @default(cuid())
   email         String
   passwordHash  String
   name          String
-  role          String   @default("user") // admin, auditor, user
+  role          String   @default("user")
+  avatar        String?
+  phone         String?
+  department    String?
+  jobTitle      String?
   isActive      Boolean  @default(true)
   lastLogin     DateTime?
+  twoFactorSecret String?
+  twoFactorEnabled Boolean @default(false)
   tenantId      String
   tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt     DateTime @default(now())
@@ -189,8 +274,22 @@ model User {
 
   auditLogs     AuditLog[]
   inventorySessions InventorySession[]
+  refreshTokens RefreshToken[]
+  notifications  Notification[]
 
   @@unique([email, tenantId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId  String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
 }
 
 model Category {
@@ -231,8 +330,8 @@ model Location {
 
 model Asset {
   id              String   @id @default(cuid())
-  qrCode          String   @unique
-   tagNumber       String
+  qrCode          String
+  tagNumber       String
   name            String
   description     String?
   serialNumber    String?
@@ -241,7 +340,10 @@ model Asset {
   purchaseDate    DateTime?
   purchasePrice   Float?
   currentValue    Float?
+  residualValue   Float?
   warrantyExpiry  DateTime?
+  usefulLifeYears Int?
+  depreciationMethod String?
   status          String   @default("active")
   condition       String   @default("good")
   assignedTo      String?
@@ -258,20 +360,30 @@ model Asset {
 
   auditLogs       AuditLog[]
   inventoryItems  InventoryItem[]
+  maintenances    Maintenance[]
+  documents       Document[]
+  depreciations   Depreciation[]
 
+  @@unique([qrCode, tenantId])
   @@unique([tagNumber, tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, categoryId])
 }
 
 model AuditLog {
   id          String   @id @default(cuid())
   action      String
   details     String?
+  ipAddress   String?
+  userAgent   String?
   assetId     String?
   asset       Asset?   @relation(fields: [assetId], references: [id], onDelete: SetNull)
   userId      String?
   user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   tenantId    String?
   createdAt   DateTime @default(now())
+
+  @@index([tenantId, createdAt])
 }
 
 model InventorySession {
@@ -322,4 +434,137 @@ model SyncQueue {
   tenantId    String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, status])
+}
+
+/* ═══════════════════════════════════════════════════
+   NOTIFICATIONS
+   ═══════════════════════════════════════════════════ */
+
+model Notification {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId      String?  // null = broadcast to all tenant users
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type        String   // asset_expired, maintenance_due, warranty_expiring, inventory_completed, system, custom
+  title       String
+  message     String
+  data        String?  // JSON payload for actions
+  isRead      Boolean  @default(false)
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, userId, isRead, createdAt])
+}
+
+/* ═══════════════════════════════════════════════════
+   MAINTENANCE
+   ═══════════════════════════════════════════════════ */
+
+model Maintenance {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assetId     String
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  type        String   @default("preventive") // preventive, corrective, emergency
+  status      String   @default("scheduled") // scheduled, in_progress, completed, cancelled
+  title       String
+  description String?
+  scheduledDate DateTime?
+  completedDate DateTime?
+  cost        Float?
+  vendor      String?
+  vendorContact String?
+  performedBy String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, assetId, status])
+  @@index([tenantId, status, scheduledDate])
+}
+
+/* ═══════════════════════════════════════════════════
+   DOCUMENT ATTACHMENTS
+   ═══════════════════════════════════════════════════ */
+
+model Document {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assetId     String?
+  asset       Asset?   @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  fileName    String
+  originalName String
+  mimeType    String
+  fileSize    Int      // bytes
+  fileUrl     String   // path to file storage
+  category    String   @default("other") // invoice, warranty, manual, photo, contract, insurance, other
+  description String?
+  version     Int      @default(1)
+ uploadedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, assetId])
+}
+
+/* ═══════════════════════════════════════════════════
+   DEPRECIATION
+   ═══════════════════════════════════════════════════ */
+
+model Depreciation {
+  id                String   @id @default(cuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assetId           String
+  asset             Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  fiscalYear        Int
+  periodNumber      Int      @default(1)
+  method            String   // straight_line, declining_balance
+  purchasePrice     Float
+  residualValue     Float    @default(0)
+  usefulLifeYears   Int
+  depreciationRate  Float    // annual rate
+  periodDepreciation Float   // this period amount
+  accumulatedDepreciation Float @default(0)
+  bookValue         Float    // after this period
+  status            String   @default("calculated") // calculated, posted, reversed
+  calculatedAt      DateTime @default(now())
+  postedAt          DateTime?
+  journalEntryId    String?
+
+  @@unique([assetId, fiscalYear, periodNumber])
+  @@index([tenantId, fiscalYear])
+}
+
+/* ═══════════════════════════════════════════════════
+   DATA MIGRATION
+   ═══════════════════════════════════════════════════ */
+
+model DataMigration {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sourceType    String   // csv, excel, json, snipeit, asset_panda, fixrm
+  entityType    String   // assets, categories, locations, users
+  fileName      String
+  fileSize      Int
+  totalRows     Int
+  processedRows Int      @default(0)
+  failedRows    Int      @default(0)
+  status        String   @default("pending") // pending, processing, completed, failed, rolled_back
+  mappingConfig String   // JSON: source column -> target field
+  errors        String?  // JSON array of row errors
+  startedAt     DateTime?
+  completedAt   DateTime?
+  rolledBackAt  DateTime?
+  createdBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId, status])
 }

@@ -15,6 +15,10 @@ import {
   Wifi,
   WifiOff,
   RefreshCw,
+  Wrench,
+  Bot,
+  Upload,
+  Bell,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -40,7 +44,11 @@ const NAV_ITEMS: NavItem[] = [
   { view: 'assets', label: 'Assets', icon: Package },
   { view: 'scan', label: 'Scan QR', icon: ScanLine },
   { view: 'inventory', label: 'Inventory', icon: ClipboardCheck },
+  { view: 'maintenance', label: 'Maintenance', icon: Wrench },
   { view: 'reports', label: 'Reports', icon: BarChart3 },
+  { view: 'notifications', label: 'Alerts', icon: Bell },
+  { view: 'ai-assistant', label: 'AI Assistant', icon: Bot },
+  { view: 'migration', label: 'Import', icon: Upload },
   { view: 'settings', label: 'Settings', icon: Settings },
 ]
 

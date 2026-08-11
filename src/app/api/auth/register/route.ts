@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { createHash } from 'crypto'
+import { hashPassword, signAccessToken, signRefreshToken, type JwtPayload } from '@/lib/jwt'
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email already registered' }, { status: 409 })
     }
 
-    const passwordHash = createHash('sha256').update(password + 'zeitgeist-salt-2024').digest('hex')
+    const passwordHash = hashPassword(password)
 
     // Find or create default plan
     let targetPlanId = planId
@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
             role: 'admin',
           },
         },
+        settings: { create: {} },
       },
       include: {
         users: true,
@@ -93,6 +94,16 @@ export async function POST(request: NextRequest) {
 
     const adminUser = tenant.users[0]
     const { passwordHash: _, ...userWithoutPassword } = adminUser
+
+    // Issue JWT tokens
+    const refreshToken = signRefreshToken(adminUser.id, tenant.id)
+    const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    await db.refreshToken.create({
+      data: { token: refreshToken, userId: adminUser.id, tenantId: tenant.id, expiresAt: refreshExpiry },
+    })
+
+    const jwtPayload: JwtPayload = { userId: adminUser.id, tenantId: tenant.id, email: adminUser.email, role: adminUser.role }
+    const accessToken = signAccessToken(jwtPayload)
 
     return NextResponse.json(
       {
@@ -116,7 +127,8 @@ export async function POST(request: NextRequest) {
             plan: tenant.subscription?.plan?.name || 'Free Trial',
           },
         },
-        token: adminUser.id,
+        accessToken,
+        refreshToken,
         subscription: tenant.subscription
           ? {
               id: tenant.subscription.id,

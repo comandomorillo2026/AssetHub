@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
 
     // Revenue chart data (last 6 months placeholder)
     const now = new Date()
-    const revenueChart = []
+    const revenueChart: { month: string; revenue: number }[] = []
     for (let i = 5; i >= 0; i--) {
       const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const monthName = monthDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })

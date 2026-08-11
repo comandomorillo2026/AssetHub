@@ -12,7 +12,7 @@ export async function GET(
       return NextResponse.json({ error: 'QR code is required' }, { status: 400 });
     }
 
-    const asset = await db.asset.findUnique({
+    const asset = await db.asset.findFirst({
       where: { qrCode: code },
       include: {
         category: { select: { id: true, name: true, code: true, color: true } },

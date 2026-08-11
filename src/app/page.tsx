@@ -14,6 +14,10 @@ import DashboardView from '@/components/views/dashboard-view'
 import AssetsView from '@/components/views/assets-view'
 import InventoryView from '@/components/views/inventory-view'
 import SettingsView from '@/components/views/settings-view'
+import MaintenanceView from '@/components/views/maintenance-view'
+import NotificationsView from '@/components/views/notifications-view'
+import AiAssistantView from '@/components/views/ai-assistant-view'
+import MigrationView from '@/components/views/migration-view'
 
 function AppLayout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
@@ -33,9 +37,18 @@ function AppLayout() {
       case 'inventory-detail':
         return <InventoryView />
       case 'reports':
+        return <SettingsView />
       case 'settings':
       case 'users':
         return <SettingsView />
+      case 'notifications':
+        return <NotificationsView />
+      case 'maintenance':
+        return <MaintenanceView />
+      case 'ai-assistant':
+        return <AiAssistantView />
+      case 'migration':
+        return <MigrationView />
       default:
         return <DashboardView />
     }
@@ -64,13 +77,15 @@ export default function Home() {
   useEffect(() => {
     const stored = localStorage.getItem('zeitgeist_user')
     const storedToken = localStorage.getItem('zeitgeist_token')
-    if (stored && storedToken) {
+    const storedRefresh = localStorage.getItem('zeitgeist_refresh_token')
+    if (stored && storedToken && storedRefresh) {
       try {
         const user = JSON.parse(stored)
-        useAppStore.getState().setAuth(user, storedToken)
+        useAppStore.getState().setAuth(user, storedToken, storedRefresh)
       } catch {
         localStorage.removeItem('zeitgeist_user')
         localStorage.removeItem('zeitgeist_token')
+        localStorage.removeItem('zeitgeist_refresh_token')
       }
     }
 

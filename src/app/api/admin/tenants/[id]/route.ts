@@ -73,7 +73,7 @@ export async function GET(
 
     const categories = assetStatsByCategory.length > 0
       ? await db.category.findMany({
-          where: { id: { in: assetStatsByCategory.map(a => a.categoryId) }, tenantId: id },
+          where: { id: { in: assetStatsByCategory.map(a => a.categoryId).filter((id): id is string => id !== null) }, tenantId: id },
         })
       : []
 

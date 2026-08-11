@@ -51,7 +51,7 @@ function AdminLoginView() {
     setLoading(true)
     try {
       const res = await adminApi.login(email, password)
-      setSuperAuth(res.user, res.token)
+      setSuperAuth(res.user, res.accessToken)
       toast.success('Welcome, Super Admin!')
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Login failed'
