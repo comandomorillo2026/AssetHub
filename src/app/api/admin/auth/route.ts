@@ -1,22 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 const db = new PrismaClient()
-import { createHash } from 'crypto'
+import { hashPassword, comparePassword, signSuperAdminToken } from '@/lib/jwt'
 
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password + 'zeitgeist-salt-2024').digest('hex')
-}
-
-function verifyAdmin(req: NextRequest): boolean {
-  return req.headers.get('x-super-admin-token') === 'zeitgeist-super-admin-2024'
-}
-
+// This is a public endpoint for super admin login (whitelisted in middleware)
+// But we still verify credentials properly
 export async function POST(req: NextRequest) {
   try {
-    if (!verifyAdmin(req)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const body = await req.json()
     const { email, password } = body
 
@@ -24,13 +14,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
     }
 
-    const passwordHash = hashPassword(password)
+    const admin = await db.superAdmin.findUnique({ where: { email } })
 
-    const admin = await db.superAdmin.findUnique({
-      where: { email },
-    })
-
-    if (!admin || admin.passwordHash !== passwordHash) {
+    if (!admin || !comparePassword(password, admin.passwordHash)) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
@@ -38,25 +24,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Account is deactivated' }, { status: 403 })
     }
 
-    // Update last login
     await db.superAdmin.update({
       where: { id: admin.id },
       data: { lastLogin: new Date() },
     })
 
-    // Generate a simple token (in production, use JWT)
-    const token = createHash('sha256')
-      .update(admin.id + admin.email + Date.now().toString())
-      .digest('hex')
+    const token = signSuperAdminToken({ adminId: admin.id, email: admin.email })
 
     return NextResponse.json({
-      user: {
-        id: admin.id,
-        email: admin.email,
-        name: admin.name,
-        isActive: admin.isActive,
-      },
-      token,
+      user: { id: admin.id, email: admin.email, name: admin.name, isActive: admin.isActive },
+      accessToken: token,
     })
   } catch (error) {
     console.error('Admin auth error:', error)

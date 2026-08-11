@@ -26,9 +26,6 @@ export async function POST() {
         type: 'government',
         country: 'Trinidad and Tobago',
         currency: 'TTD',
-        plan: 'enterprise',
-        maxAssets: 5000,
-        maxUsers: 100,
         users: {
           create: {
             name: 'Anisa Mohammed',
@@ -306,6 +303,144 @@ export async function POST() {
       }),
     ]);
 
+    // Create sample maintenance records
+    const maintenanceRecords = await Promise.all([
+      db.maintenance.create({
+        data: {
+          tenantId: tenant.id,
+          assetId: assets[10].id, // John Deere Gator
+          type: 'corrective',
+          status: 'in_progress',
+          title: 'Engine Overhaul - Gator Utility Vehicle',
+          description: 'Engine knocking and reduced power output. Requires full engine overhaul and oil seal replacement.',
+          scheduledDate: new Date('2024-06-15'),
+          cost: 8500,
+          vendor: 'Caribbean Heavy Equipment Ltd.',
+          vendorContact: '+1-868-623-4455',
+          performedBy: 'Mechanic: Dave Singh',
+          notes: 'Parts ordered from supplier. Expected 3-day turnaround.',
+        },
+      }),
+      db.maintenance.create({
+        data: {
+          tenantId: tenant.id,
+          assetId: assets[8].id, // Toyota Hilux
+          type: 'preventive',
+          status: 'scheduled',
+          title: 'Annual Service - Hilux Pickup',
+          description: 'Scheduled 50,000km service including oil change, brake inspection, tire rotation, and air filter replacement.',
+          scheduledDate: new Date('2024-08-01'),
+          cost: 3200,
+          vendor: 'Toyota Trinidad & Tobago',
+          vendorContact: '+1-868-662-8800',
+          performedBy: null,
+          notes: 'Fleet maintenance schedule Q3 2024.',
+        },
+      }),
+      db.maintenance.create({
+        data: {
+          tenantId: tenant.id,
+          assetId: assets[0].id, // Dell OptiPlex
+          type: 'preventive',
+          status: 'completed',
+          title: 'Hardware Upgrade - RAM & SSD',
+          description: 'Upgraded from 8GB to 16GB RAM and replaced 256GB HDD with 512GB SSD for improved performance.',
+          scheduledDate: new Date('2024-03-10'),
+          completedDate: new Date('2024-03-12'),
+          cost: 1800,
+          vendor: 'Computer World T&T',
+          vendorContact: '+1-868-625-1100',
+          performedBy: 'IT Team: Anisa Mohammed',
+          notes: 'Performance improvement confirmed. Boot time reduced from 45s to 12s.',
+        },
+      }),
+      db.maintenance.create({
+        data: {
+          tenantId: tenant.id,
+          assetId: assets[3].id, // Cisco Switch
+          type: 'corrective',
+          status: 'completed',
+          title: 'Port Replacement - Cisco Switch',
+          description: 'Ports 20-24 not functioning after power surge. Replaced damaged module and installed surge protector.',
+          scheduledDate: new Date('2024-05-20'),
+          completedDate: new Date('2024-05-21'),
+          cost: 2200,
+          vendor: 'Cisco Partner Caribbean',
+          performedBy: 'IT Vendor: TechConnect Ltd.',
+          notes: 'Surge protector installed on all network equipment racks.',
+        },
+      }),
+      db.maintenance.create({
+        data: {
+          tenantId: tenant.id,
+          assetId: assets[15].id, // Honda Generator
+          type: 'preventive',
+          status: 'scheduled',
+          title: 'Generator Maintenance & Load Test',
+          description: 'Quarterly maintenance including oil change, air filter cleaning, spark plug check, and full load test.',
+          scheduledDate: new Date('2024-09-15'),
+          cost: 600,
+          vendor: null,
+          performedBy: 'Facilities Team',
+          notes: 'Critical backup power equipment. Priority maintenance.',
+        },
+      }),
+    ]);
+
+    // Create sample notifications
+    const notifications = await Promise.all([
+      db.notification.create({
+        data: {
+          tenantId: tenant.id,
+          userId: null, // broadcast
+          type: 'system',
+          title: 'Welcome to AssetHub',
+          message: 'Your organization has been set up with AssetHub. Start by exploring your dashboard and reviewing your asset inventory.',
+          isRead: true,
+        },
+      }),
+      db.notification.create({
+        data: {
+          tenantId: tenant.id,
+          userId: null,
+          type: 'warranty_expiring',
+          title: 'Warranty Expiring Soon',
+          message: 'Cisco Catalyst 2960 Switch (IT-2023-015) warranty expires on Aug 1, 2025. Consider extending or planning for replacement.',
+          data: JSON.stringify({ assetId: assets[3].id, type: 'warranty' }),
+        },
+      }),
+      db.notification.create({
+        data: {
+          tenantId: tenant.id,
+          userId: null,
+          type: 'maintenance_due',
+          title: 'Scheduled Maintenance Next Week',
+          message: 'Toyota Hilux (VEH-2021-001) is due for annual service on Aug 1, 2024. Ensure vehicle is available at Public Works Depot.',
+          data: JSON.stringify({ assetId: assets[8].id, type: 'maintenance' }),
+        },
+      }),
+      db.notification.create({
+        data: {
+          tenantId: tenant.id,
+          userId: null,
+          type: 'maintenance_due',
+          title: 'Maintenance In Progress',
+          message: 'John Deere Gator (VEH-2019-003) engine overhaul is currently in progress. Estimated completion: Jun 18, 2024.',
+          data: JSON.stringify({ assetId: assets[10].id, type: 'maintenance' }),
+        },
+      }),
+      db.notification.create({
+        data: {
+          tenantId: tenant.id,
+          userId: adminUser.id,
+          type: 'custom',
+          title: 'Monthly Asset Report Ready',
+          message: 'Your July 2024 asset management report has been generated. Total assets: ' + assets.length + '. Review it in the Reports section.',
+          data: JSON.stringify({ type: 'report', period: '2024-07' }),
+        },
+      }),
+    ]);
+
     return NextResponse.json({
       message: 'Demo data seeded successfully',
       tenant: {
@@ -325,6 +460,8 @@ export async function POST() {
         locations: 6,
         assets: assets.length,
         auditLogs: 10,
+        maintenanceRecords: maintenanceRecords.length,
+        notifications: notifications.length,
       },
     }, { status: 201 });
   } catch (error) {

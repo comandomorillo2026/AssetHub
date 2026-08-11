@@ -40,7 +40,7 @@ export default function LoginView() {
     setLoading(true)
     try {
       const res = await authApi.login(email, password, tenantSlug)
-      setAuth(res.user, res.token)
+      setAuth(res.user, res.accessToken, res.refreshToken)
       toast.success('Welcome back!')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed. Please try again.'

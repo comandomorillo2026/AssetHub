@@ -47,10 +47,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the asset by QR code
-    const asset = await db.asset.findUnique({
-      where: { qrCode },
+    const asset = await db.asset.findFirst({
+      where: { qrCode, tenantId },
       include: {
-        category: { select: { id: true, name: true, code: true } },
+        category: { select: { id: true, name: true, code: true, color: true } },
         location: { select: { id: true, name: true, code: true } },
       },
     });
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       // Check wrong location
       else if (session.locationId && asset.locationId && asset.locationId !== session.locationId) {
         discrepancyType = 'wrong_location';
-        discrepancyNote = `Asset should be at ${asset.location.name} but was found during scan at session location`;
+        discrepancyNote = `Asset should be at ${asset.location?.name || 'unknown location'} but was found during scan at session location`;
       }
       // Check status mismatch (e.g., scanning a disposed asset)
       else if (asset.status === 'disposed' || asset.status === 'lost' || asset.status === 'stolen') {

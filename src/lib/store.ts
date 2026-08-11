@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type View = 'login' | 'register' | 'register-wizard' | 'dashboard' | 'assets' | 'asset-detail' | 'add-asset' | 'edit-asset' | 'scan' | 'inventory' | 'inventory-detail' | 'reports' | 'settings' | 'users' | 'super-admin' | 'admin-tenant-detail' | 'portal'
+export type View = 'login' | 'register' | 'register-wizard' | 'dashboard' | 'assets' | 'asset-detail' | 'add-asset' | 'edit-asset' | 'scan' | 'inventory' | 'inventory-detail' | 'reports' | 'settings' | 'users' | 'super-admin' | 'admin-tenant-detail' | 'portal' | 'notifications' | 'maintenance' | 'ai-assistant' | 'migration'
 
 export interface SuperAdmin {
   id: string
@@ -196,9 +196,10 @@ interface AppState {
 
   // Auth
   user: User | null
-  token: string | null
+  accessToken: string | null
+  refreshToken: string | null
   isAuthenticated: boolean
-  setAuth: (user: User, token: string) => void
+  setAuth: (user: User, accessToken: string, refreshToken: string) => void
   logout: () => void
 
   // Super Admin Auth
@@ -236,21 +237,24 @@ export const useAppStore = create<AppState>((set) => ({
   goBack: () => set((s) => s.previousView ? { currentView: s.previousView, previousView: null } : {}),
 
   user: null,
-  token: null,
+  accessToken: null,
+  refreshToken: null,
   isAuthenticated: false,
-  setAuth: (user, token) => {
+  setAuth: (user, accessToken, refreshToken) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('zeitgeist_user', JSON.stringify(user))
-      localStorage.setItem('zeitgeist_token', token)
+      localStorage.setItem('zeitgeist_token', accessToken)
+      localStorage.setItem('zeitgeist_refresh_token', refreshToken)
     }
-    set({ user, token, isAuthenticated: true, currentView: 'dashboard' })
+    set({ user, accessToken, refreshToken, isAuthenticated: true, currentView: 'dashboard' })
   },
   logout: () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('zeitgeist_user')
       localStorage.removeItem('zeitgeist_token')
+      localStorage.removeItem('zeitgeist_refresh_token')
     }
-    set({ user: null, token: null, isAuthenticated: false, currentView: 'portal' as View, selectedAssetId: null, selectedInventoryId: null })
+    set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false, currentView: 'portal' as View, selectedAssetId: null, selectedInventoryId: null })
   },
 
   superAdmin: null,

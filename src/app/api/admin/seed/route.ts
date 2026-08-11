@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 const db = new PrismaClient()
-import { createHash } from 'crypto'
+import { hashPassword } from '@/lib/jwt'
 
 function verifyAdmin(req: NextRequest): boolean {
   return req.headers.get('x-super-admin-token') === 'zeitgeist-super-admin-2024'
-}
-
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password + 'zeitgeist-salt-2024').digest('hex')
 }
 
 export async function POST(req: NextRequest) {
@@ -121,6 +117,27 @@ export async function POST(req: NextRequest) {
     // 4. Update existing demo tenant with subscription and payment history
     const demoTenant = await db.tenant.findUnique({ where: { slug: 'pos-municipal-corp' } })
     if (demoTenant) {
+      // Ensure TenantSettings exists for this tenant
+      const existingSettings = await db.tenantSettings.findUnique({ where: { tenantId: demoTenant.id } })
+      if (!existingSettings) {
+        await db.tenantSettings.create({
+          data: {
+            tenantId: demoTenant.id,
+            primaryColor: '#0f766e',
+            secondaryColor: '#14b8a6',
+            accentColor: '#f59e0b',
+            fontFamily: 'Inter',
+            emailNotificationsEnabled: true,
+            inAppNotificationsEnabled: true,
+            maintenanceAlertsEnabled: true,
+            warrantyAlertsEnabled: true,
+          },
+        })
+        results.tenantSettings = { message: 'Created TenantSettings for demo tenant' }
+      } else {
+        results.tenantSettings = { message: 'Demo tenant already has settings' }
+      }
+
       const existingSub = await db.subscription.findUnique({ where: { tenantId: demoTenant.id } })
 
       if (!existingSub) {
@@ -185,6 +202,24 @@ export async function POST(req: NextRequest) {
       } else {
         results.tenantUpdate = { message: 'Demo tenant already has a subscription' }
       }
+    }
+
+    // 5. Ensure all other tenants have TenantSettings
+    const allTenants = await db.tenant.findMany({
+      select: { id: true, name: true },
+    })
+    const settingsCreated: string[] = []
+    for (const t of allTenants) {
+      const existing = await db.tenantSettings.findUnique({ where: { tenantId: t.id } })
+      if (!existing) {
+        await db.tenantSettings.create({
+          data: { tenantId: t.id },
+        })
+        settingsCreated.push(t.name)
+      }
+    }
+    if (settingsCreated.length > 0) {
+      results.additionalTenantSettings = { created: settingsCreated }
     }
 
     return NextResponse.json({

@@ -104,7 +104,7 @@ export default function RegistrationWizard() {
   const [checkoutUrl, setCheckoutUrl] = useState('')
 
   // Step 4: Complete
-  const [createdTenant, setCreatedTenant] = useState<{ user: Record<string, unknown>; token: string } | null>(null)
+  const [createdTenant, setCreatedTenant] = useState<{ user: Record<string, unknown>; accessToken: string; refreshToken: string } | null>(null)
 
   const autoSlug = useMemo(() => (tenantName ? slugify(tenantName) : ''), [tenantName])
   const handleTenantNameChange = useCallback(
@@ -207,7 +207,7 @@ export default function RegistrationWizard() {
   // Skip payment (start free trial)
   function handleSkipPayment() {
     if (createdTenant) {
-      setAuth(createdTenant.user as { id: string; email: string; name: string; role: string; tenantId: string }, createdTenant.token)
+      setAuth(createdTenant.user as { id: string; email: string; name: string; role: string; tenantId: string }, createdTenant.accessToken, createdTenant.refreshToken)
     }
     toast.success('Welcome to AssetHub! Your 14-day free trial has started.')
   }
@@ -479,7 +479,7 @@ export default function RegistrationWizard() {
                   <Button
                     onClick={() => {
                       if (createdTenant) {
-                        setAuth(createdTenant.user as { id: string; email: string; name: string; role: string; tenantId: string }, createdTenant.token)
+                        setAuth(createdTenant.user as { id: string; email: string; name: string; role: string; tenantId: string }, createdTenant.accessToken, createdTenant.refreshToken)
                       }
                     }}
                     className="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-semibold h-12 px-8 rounded-xl shadow-lg shadow-teal-600/20"

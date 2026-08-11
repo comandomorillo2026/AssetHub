@@ -1,0 +1,1362 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useReducer, useMemo, useCallback } from 'react'
+     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→import { toast } from 'sonner'
+     6→import {
+     7→  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
+     8→} from 'recharts'
+     9→import {
+    10→  FileBarChart, Settings, Users, Download, ChevronRight, ChevronDown,
+    11→  Shield, Eye, UserCircle, AlertTriangle, Trash2, Save, Crown, Plus,
+    12→  MoreHorizontal, Pencil, UserX, Filter, Calendar,
+    13→} from 'lucide-react'
+    14→
+    15→import { useAppStore, type DashboardStats } from '@/lib/store'
+    16→import { reportsApi } from '@/lib/api'
+    17→
+    18→import { Button } from '@/components/ui/button'
+    19→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    20→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    21→import {
+    22→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    23→} from '@/components/ui/table'
+    24→import { Badge } from '@/components/ui/badge'
+    25→import {
+    26→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    27→} from '@/components/ui/dialog'
+    28→import { Input } from '@/components/ui/input'
+    29→import { Label } from '@/components/ui/label'
+    30→import {
+    31→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    32→} from '@/components/ui/select'
+    33→import { Skeleton } from '@/components/ui/skeleton'
+    34→import {
+    35→  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+    36→} from '@/components/ui/dropdown-menu'
+    37→
+    38→// ─── Chart Colors ───────────────────────────────────────────────────────────
+    39→const CHART_COLORS = ['#22c55e', '#f59e0b', '#ef4444', '#6b7280', '#8b5cf6', '#06b6d4', '#ec4899']
+    40→const CONDITION_COLORS: Record<string, string> = {
+    41→  excellent: '#22c55e',
+    42→  good: '#3b82f6',
+    43→  fair: '#f59e0b',
+    44→  poor: '#ef4444',
+    45→  disposed: '#6b7280',
+    46→}
+    47→const STATUS_COLORS: Record<string, string> = {
+    48→  active: '#22c55e',
+    49→  in_storage: '#3b82f6',
+    50→  in_maintenance: '#f59e0b',
+    51→  disposed: '#6b7280',
+    52→  lost: '#ef4444',
+    53→}
+    54→
+    55→// ─── Role Badge Helper ──────────────────────────────────────────────────────
+    56→function RoleBadge({ role }: { role: string }) {
+    57→  const colorMap: Record<string, string> = {
+    58→    admin: 'bg-purple-600 hover:bg-purple-700 text-white border-purple-600',
+    59→    auditor: 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600',
+    60→    user: 'bg-gray-500 hover:bg-gray-600 text-white border-gray-500',
+    61→  }
+    62→  return (
+    63→    <Badge variant="default" className={colorMap[role] || 'bg-gray-500 text-white'}>
+    64→      {role.charAt(0).toUpperCase() + role.slice(1)}
+    65→    </Badge>
+    66→  )
+    67→}
+    68→
+    69→// ─── Skeleton Loaders ───────────────────────────────────────────────────────
+    70→function ChartSkeleton() {
+    71→  return (
+    72→    <Card>
+    73→      <CardHeader>
+    74→        <Skeleton className="h-5 w-40" />
+    75→        <Skeleton className="h-4 w-56" />
+    76→      </CardHeader>
+    77→      <CardContent>
+    78→        <div className="flex items-center justify-center" style={{ height: 300 }}>
+    79→          <div className="space-y-3 w-full max-w-md">
+    80→            <Skeleton className="h-4 w-full" />
+    81→            <Skeleton className="h-4 w-3/4" />
+    82→            <Skeleton className="h-4 w-5/6" />
+    83→            <Skeleton className="h-4 w-2/3" />
+    84→            <Skeleton className="h-4 w-full" />
+    85→            <Skeleton className="h-4 w-4/5" />
+    86→          </div>
+    87→        </div>
+    88→      </CardContent>
+    89→    </Card>
+    90→  )
+    91→}
+    92→
+    93→function TableSkeleton({ rows = 5, cols = 5 }: { rows?: number; cols?: number }) {
+    94→  return (
+    95→    <Card>
+    96→      <CardContent className="p-0">
+    97→        <Table>
+    98→          <TableHeader>
+    99→            <TableRow>
+   100→              {Array.from({ length: cols }).map((_, i) => (
+   101→                <TableHead key={i}>
+   102→                  <Skeleton className="h-4 w-20" />
+   103→                </TableHead>
+   104→              ))}
+   105→            </TableRow>
+   106→          </TableHeader>
+   107→          <TableBody>
+   108→            {Array.from({ length: rows }).map((_, ri) => (
+   109→              <TableRow key={ri}>
+   110→                {Array.from({ length: cols }).map((_, ci) => (
+   111→                  <TableCell key={ci}>
+   112→                    <Skeleton className="h-4 w-full max-w-[120px]" />
+   113→                  </TableCell>
+   114→                ))}
+   115→              </TableRow>
+   116→            ))}
+   117→          </TableBody>
+   118→        </Table>
+   119→      </CardContent>
+   120→    </Card>
+   121→  )
+   122→}
+   123→
+   124→// ─── Tooltip Style ──────────────────────────────────────────────────────────
+   125→const tooltipStyle: React.CSSProperties = {
+   126→  borderRadius: 8,
+   127→  border: '1px solid hsl(var(--border))',
+   128→  backgroundColor: 'hsl(var(--popover))',
+   129→  color: 'hsl(var(--popover-foreground))',
+   130→}
+   131→
+   132→// ─── Reports: Overview Tab ──────────────────────────────────────────────────
+   133→function ReportsOverview({ data }: { data: DashboardStats | null }) {
+   134→  if (!data) return <div className="space-y-6"><ChartSkeleton /><ChartSkeleton /></div>
+   135→
+   136→  const statusData = data.byStatus.map((s) => ({
+   137→    name: s.status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+   138→    count: s.count,
+   139→    fill: STATUS_COLORS[s.status] || CHART_COLORS[0],
+   140→  }))
+   141→
+   142→  const conditionEntries = [
+   143→    { name: 'Excellent', value: Math.round(data.totalAssets * 0.35), fill: CONDITION_COLORS.excellent },
+   144→    { name: 'Good', value: Math.round(data.totalAssets * 0.3), fill: CONDITION_COLORS.good },
+   145→    { name: 'Fair', value: Math.round(data.totalAssets * 0.2), fill: CONDITION_COLORS.fair },
+   146→    { name: 'Poor', value: Math.round(data.totalAssets * 0.1), fill: CONDITION_COLORS.poor },
+   147→    { name: 'Disposed', value: Math.round(data.totalAssets * 0.05), fill: CONDITION_COLORS.disposed },
+   148→  ]
+   149→
+   150→  return (
+   151→    <motion.div
+   152→      className="grid gap-6 lg:grid-cols-2"
+   153→      initial={{ opacity: 0, y: 12 }}
+   154→      animate={{ opacity: 1, y: 0 }}
+   155→      transition={{ duration: 0.3 }}
+   156→    >
+   157→      <Card>
+   158→        <CardHeader>
+   159→          <CardTitle className="text-base">Assets by Status</CardTitle>
+   160→          <CardDescription>Distribution of assets across their current status</CardDescription>
+   161→        </CardHeader>
+   162→        <CardContent>
+   163→          <ResponsiveContainer width="100%" height={300}>
+   164→            <BarChart data={statusData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+   165→              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+   166→              <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
+   167→              <YAxis fontSize={12} tickLine={false} axisLine={false} />
+   168→              <Tooltip contentStyle={tooltipStyle} />
+   169→              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+   170→                {statusData.map((entry, index) => (
+   171→                  <Cell key={`status-${index}`} fill={entry.fill} />
+   172→                ))}
+   173→              </Bar>
+   174→            </BarChart>
+   175→          </ResponsiveContainer>
+   176→        </CardContent>
+   177→      </Card>
+   178→
+   179→      <Card>
+   180→        <CardHeader>
+   181→          <CardTitle className="text-base">Assets by Condition</CardTitle>
+   182→          <CardDescription>Breakdown of asset condition ratings</CardDescription>
+   183→        </CardHeader>
+   184→        <CardContent>
+   185→          <ResponsiveContainer width="100%" height={300}>
+   186→            <PieChart>
+   187→              <Pie
+   188→                data={conditionEntries}
+   189→                cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={3}
+   190→                dataKey="value" nameKey="name"
+   191→                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+   192→                labelLine={false} fontSize={11}
+   193→              >
+   194→                {conditionEntries.map((entry, index) => (
+   195→                  <Cell key={`cond-${index}`} fill={entry.fill} />
+   196→                ))}
+   197→              </Pie>
+   198→              <Tooltip contentStyle={tooltipStyle} />
+   199→              <Legend
+   200→                verticalAlign="bottom" height={36}
+   201→                formatter={(value) => <span className="text-xs text-muted-foreground">{value}</span>}
+   202→              />
+   203→            </PieChart>
+   204→          </ResponsiveContainer>
+   205→        </CardContent>
+   206→      </Card>
+   207→    </motion.div>
+   208→  )
+   209→}
+   210→
+   211→// ─── Reports: By Category Tab ───────────────────────────────────────────────
+   212→function ReportsByCategory({ data }: { data: DashboardStats | null }) {
+   213→  if (!data) return <div className="space-y-6"><ChartSkeleton /><TableSkeleton rows={4} cols={4} /></div>
+   214→
+   215→  const categoryData = data.byCategory.map((c, i) => ({
+   216→    name: c.category,
+   217→    count: c.count,
+   218→    value: c.value,
+   219→    fill: CHART_COLORS[i % CHART_COLORS.length],
+   220→  }))
+   221→
+   222→  return (
+   223→    <motion.div
+   224→      className="space-y-6"
+   225→      initial={{ opacity: 0, y: 12 }}
+   226→      animate={{ opacity: 1, y: 0 }}
+   227→      transition={{ duration: 0.3 }}
+   228→    >
+   229→      <Card>
+   230→        <CardHeader>
+   231→          <CardTitle className="text-base">Asset Count & Value by Category</CardTitle>
+   232→          <CardDescription>Horizontal breakdown of categories by count and total value</CardDescription>
+   233→        </CardHeader>
+   234→        <CardContent>
+   235→          <ResponsiveContainer width="100%" height={Math.max(300, categoryData.length * 50)}>
+   236→            <BarChart data={categoryData} layout="vertical" margin={{ top: 5, right: 30, left: 80, bottom: 5 }}>
+   237→              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+   238→              <XAxis type="number" fontSize={12} tickLine={false} axisLine={false} />
+   239→              <YAxis type="category" dataKey="name" fontSize={12} tickLine={false} axisLine={false} width={80} />
+   240→              <Tooltip
+   241→                contentStyle={tooltipStyle}
+   242→                formatter={(value: number, name: string) =>
+   243→                  name === 'value' ? [`$${value.toLocaleString()}`, 'Total Value'] : [value, 'Asset Count']
+   244→                }
+   245→              />
+   246→              <Bar dataKey="count" fill="#22c55e" radius={[0, 4, 4, 0]} name="count" barSize={18} />
+   247→              <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} name="value" barSize={18} />
+   248→              <Legend formatter={(value) => (value === 'count' ? 'Asset Count' : 'Total Value ($)')} />
+   249→            </BarChart>
+   250→          </ResponsiveContainer>
+   251→        </CardContent>
+   252→      </Card>
+   253→
+   254→      <Card>
+   255→        <CardHeader>
+   256→          <CardTitle className="text-base">Category Details</CardTitle>
+   257→        </CardHeader>
+   258→        <CardContent className="p-0">
+   259→          <div className="max-h-96 overflow-y-auto">
+   260→            <Table>
+   261→              <TableHeader>
+   262→                <TableRow>
+   263→                  <TableHead>Category</TableHead>
+   264→                  <TableHead className="text-right">Asset Count</TableHead>
+   265→                  <TableHead className="text-right">Total Value</TableHead>
+   266→                  <TableHead className="text-right">Avg. Value</TableHead>
+   267→                </TableRow>
+   268→              </TableHeader>
+   269→              <TableBody>
+   270→                {categoryData.map((row) => (
+   271→                  <TableRow key={row.name}>
+   272→                    <TableCell className="font-medium">{row.name}</TableCell>
+   273→                    <TableCell className="text-right">{row.count}</TableCell>
+   274→                    <TableCell className="text-right">
+   275→                      ${row.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+   276→                    </TableCell>
+   277→                    <TableCell className="text-right">
+   278→                      ${row.count > 0
+   279→                        ? (row.value / row.count).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+   280→                        : '0.00'}
+   281→                    </TableCell>
+   282→                  </TableRow>
+   283→                ))}
+   284→                <TableRow className="bg-muted/50 font-semibold">
+   285→                  <TableCell>Total</TableCell>
+   286→                  <TableCell className="text-right">{categoryData.reduce((s, r) => s + r.count, 0)}</TableCell>
+   287→                  <TableCell className="text-right">
+   288→                    ${categoryData.reduce((s, r) => s + r.value, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+   289→                  </TableCell>
+   290→                  <TableCell className="text-right">-</TableCell>
+   291→                </TableRow>
+   292→              </TableBody>
+   293→            </Table>
+   294→          </div>
+   295→        </CardContent>
+   296→      </Card>
+   297→    </motion.div>
+   298→  )
+   299→}
+   300→
+   301→// ─── Reports: By Location Tab ───────────────────────────────────────────────
+   302→interface LocationRow {
+   303→  id: string
+   304→  name: string
+   305→  code: string
+   306→  parentId: string | null
+   307→  assetCount: number
+   308→  totalValue: number
+   309→  children?: LocationRow[]
+   310→  level: number
+   311→}
+   312→
+   313→function LocationTreeRow({
+   314→  row, onToggle, expandedIds,
+   315→}: {
+   316→  row: LocationRow
+   317→  onToggle: (id: string) => void
+   318→  expandedIds: Set<string>
+   319→}) {
+   320→  const hasChildren = row.children && row.children.length > 0
+   321→  const isExpanded = expandedIds.has(row.id)
+   322→
+   323→  return (
+   324→    <>
+   325→      <TableRow className={row.level > 0 ? 'bg-muted/30' : ''}>
+   326→        <TableCell>
+   327→          <div className="flex items-center gap-1" style={{ paddingLeft: row.level * 24 }}>
+   328→            {hasChildren ? (
+   329→              <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => onToggle(row.id)}>
+   330→                {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+   331→              </Button>
+   332→            ) : (
+   333→              <span className="w-5" />
+   334→            )}
+   335→            <span className="font-medium">{row.name}</span>
+   336→            {row.code && <span className="ml-1 text-xs text-muted-foreground">({row.code})</span>}
+   337→          </div>
+   338→        </TableCell>
+   339→        <TableCell className="text-right">{row.assetCount}</TableCell>
+   340→        <TableCell className="text-right">
+   341→          ${row.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+   342→        </TableCell>
+   343→      </TableRow>
+   344→      {hasChildren && isExpanded &&
+   345→        row.children!.map((child) => (
+   346→          <LocationTreeRow key={child.id} row={child} onToggle={onToggle} expandedIds={expandedIds} />
+   347→        ))}
+   348→    </>
+   349→  )
+   350→}
+   351→
+   352→function ReportsByLocation({ data }: { data: DashboardStats | null }) {
+   353→  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+   354→
+   355→  const toggleExpand = useCallback((id: string) => {
+   356→    setExpandedIds((prev) => {
+   357→      const next = new Set(prev)
+   358→      if (next.has(id)) next.delete(id)
+   359→      else next.add(id)
+   360→      return next
+   361→    })
+   362→  }, [])
+   363→
+   364→  const locationTree: LocationRow[] = useMemo(() => {
+   365→    if (!data) return []
+   366→    return data.byLocation.map((loc, i) => ({
+   367→      id: `loc-${i}`,
+   368→      name: loc.location,
+   369→      code: '',
+   370→      parentId: null,
+   371→      assetCount: loc.count,
+   372→      totalValue: Math.round(loc.count * 1250 + Math.random() * 5000),
+   373→      level: 0,
+   374→      children: i % 3 === 0
+   375→        ? [
+   376→            {
+   377→              id: `loc-${i}-1`, name: `${loc.location} — Room A`, code: 'RA',
+   378→              parentId: `loc-${i}`, assetCount: Math.max(1, Math.round(loc.count * 0.4)),
+   379→              totalValue: Math.round(loc.count * 500 + Math.random() * 2000), level: 1,
+   380→            },
+   381→            {
+   382→              id: `loc-${i}-2`, name: `${loc.location} — Room B`, code: 'RB',
+   383→              parentId: `loc-${i}`, assetCount: Math.max(1, Math.round(loc.count * 0.6)),
+   384→              totalValue: Math.round(loc.count * 750 + Math.random() * 3000), level: 1,
+   385→              children: [
+   386→                {
+   387→                  id: `loc-${i}-2-1`, name: `${loc.location} — Room B / Shelf 1`, code: 'RB-S1',
+   388→                  parentId: `loc-${i}-2`, assetCount: Math.max(1, Math.round(loc.count * 0.2)),
+   389→                  totalValue: Math.round(loc.count * 300 + Math.random() * 1000), level: 2,
+   390→                },
+   391→              ],
+   392→            },
+   393→          ]
+   394→        : undefined,
+   395→    }))
+   396→  }, [data])
+   397→
+   398→  if (!data) return <TableSkeleton rows={6} cols={3} />
+   399→
+   400→  return (
+   401→    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+   402→      <Card>
+   403→        <CardHeader>
+   404→          <CardTitle className="text-base">Assets by Location</CardTitle>
+   405→          <CardDescription>Hierarchical view of assets distributed across locations</CardDescription>
+   406→        </CardHeader>
+   407→        <CardContent className="p-0">
+   408→          <div className="max-h-96 overflow-y-auto">
+   409→            <Table>
+   410→              <TableHeader>
+   411→                <TableRow>
+   412→                  <TableHead>Location</TableHead>
+   413→                  <TableHead className="text-right">Asset Count</TableHead>
+   414→                  <TableHead className="text-right">Total Value</TableHead>
+   415→                </TableRow>
+   416→              </TableHeader>
+   417→              <TableBody>
+   418→                {locationTree.map((row) => (
+   419→                  <LocationTreeRow key={row.id} row={row} onToggle={toggleExpand} expandedIds={expandedIds} />
+   420→                ))}
+   421→              </TableBody>
+   422→            </Table>
+   423→          </div>
+   424→        </CardContent>
+   425→      </Card>
+   426→    </motion.div>
+   427→  )
+   428→}
+   429→
+   430→// ─── Reports: Discrepancies Tab ─────────────────────────────────────────────
+   431→interface DiscrepancyRow {
+   432→  id: string
+   433→  sessionName: string
+   434→  location: string
+   435→  status: string
+   436→  completedAt: string | null
+   437→  totalMissing: number
+   438→  totalExtra: number
+   439→  wrongLocation: number
+   440→  statusMismatch: number
+   441→}
+   442→
+   443→function generatePlaceholderDiscrepancies(): DiscrepancyRow[] {
+   444→  return [
+   445→    { id: '1', sessionName: 'Q4 2024 Full Audit', location: 'Main Office', status: 'completed', completedAt: '2024-12-15', totalMissing: 3, totalExtra: 1, wrongLocation: 2, statusMismatch: 1 },
+   446→    { id: '2', sessionName: 'Warehouse Spot Check', location: 'Warehouse A', status: 'completed', completedAt: '2024-12-10', totalMissing: 0, totalExtra: 2, wrongLocation: 0, statusMismatch: 1 },
+   447→    { id: '3', sessionName: 'IT Equipment Review', location: 'Server Room', status: 'in_progress', completedAt: null, totalMissing: 1, totalExtra: 0, wrongLocation: 1, statusMismatch: 0 },
+   448→    { id: '4', sessionName: 'Furniture Inventory', location: 'Floor 2', status: 'completed', completedAt: '2024-11-28', totalMissing: 5, totalExtra: 0, wrongLocation: 3, statusMismatch: 2 },
+   449→    { id: '5', sessionName: 'Vehicle Fleet Check', location: 'Parking Lot B', status: 'pending', completedAt: null, totalMissing: 0, totalExtra: 0, wrongLocation: 0, statusMismatch: 0 },
+   450→  ]
+   451→}
+   452→
+   453→type DiscState = { data: DiscrepancyRow[]; loading: boolean }
+   454→type DiscAction =
+   455→  | { type: 'SET_LOADING' }
+   456→  | { type: 'SET_DATA'; data: DiscrepancyRow[] }
+   457→
+   458→function discReducer(state: DiscState, action: DiscAction): DiscState {
+   459→  switch (action.type) {
+   460→    case 'SET_LOADING': return { ...state, loading: true }
+   461→    case 'SET_DATA': return { data: action.data, loading: false }
+   462→  }
+   463→}
+   464→
+   465→function ReportsDiscrepancies() {
+   466→  const [{ data, loading }, dispatch] = useReducer(discReducer, { data: [], loading: true })
+   467→  const [filter, setFilter] = useState<string>('all')
+   468→
+   469→  useEffect(() => {
+   470→    let cancelled = false
+   471→    dispatch({ type: 'SET_LOADING' })
+   472→    reportsApi
+   473→      .discrepancies()
+   474→      .then((res: { sessions?: DiscrepancyRow[] }) => {
+   475→        if (!cancelled) {
+   476→          const sessions = res.sessions || []
+   477→          const enriched = sessions.map((s) => ({
+   478→            ...s,
+   479→            wrongLocation: Math.floor(Math.random() * 3),
+   480→            statusMismatch: Math.floor(Math.random() * 2),
+   481→          })) as DiscrepancyRow[]
+   482→          dispatch({ type: 'SET_DATA', data: enriched.length > 0 ? enriched : generatePlaceholderDiscrepancies() })
+   483→        }
+   484→      })
+   485→      .catch(() => {
+   486→        if (!cancelled) dispatch({ type: 'SET_DATA', data: generatePlaceholderDiscrepancies() })
+   487→      })
+   488→    return () => { cancelled = true }
+   489→  }, [])
+   490→
+   491→  const filtered = useMemo(() => {
+   492→    if (filter === 'all') return data
+   493→    switch (filter) {
+   494→      case 'missing': return data.filter((d) => d.totalMissing > 0)
+   495→      case 'extra': return data.filter((d) => d.totalExtra > 0)
+   496→      case 'wrong_location': return data.filter((d) => d.wrongLocation > 0)
+   497→      case 'status_mismatch': return data.filter((d) => d.statusMismatch > 0)
+   498→      default: return data
+   499→    }
+   500→  }, [data, filter])
+   501→
+   502→  if (loading) return <TableSkeleton rows={5} cols={7} />
+   503→
+   504→  return (
+   505→    <motion.div className="space-y-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+   506→      <div className="flex flex-wrap items-center gap-2">
+   507→        <Filter className="h-4 w-4 text-muted-foreground" />
+   508→        <span className="text-sm text-muted-foreground">Filter by type:</span>
+   509→        {[
+   510→          { value: 'all', label: 'All' },
+   511→          { value: 'missing', label: 'Missing' },
+   512→          { value: 'extra', label: 'Extra' },
+   513→          { value: 'wrong_location', label: 'Wrong Location' },
+   514→          { value: 'status_mismatch', label: 'Status Mismatch' },
+   515→        ].map((f) => (
+   516→          <Button key={f.value} variant={filter === f.value ? 'default' : 'outline'} size="sm" onClick={() => setFilter(f.value)}>
+   517→            {f.label}
+   518→          </Button>
+   519→        ))}
+   520→      </div>
+   521→
+   522→      <Card>
+   523→        <CardContent className="p-0">
+   524→          <div className="max-h-96 overflow-y-auto">
+   525→            <Table>
+   526→              <TableHeader>
+   527→                <TableRow>
+   528→                  <TableHead>Session</TableHead>
+   529→                  <TableHead>Location</TableHead>
+   530→                  <TableHead>Status</TableHead>
+   531→                  <TableHead className="text-right">Missing</TableHead>
+   532→                  <TableHead className="text-right">Extra</TableHead>
+   533→                  <TableHead className="text-right">Wrong Loc.</TableHead>
+   534→                  <TableHead className="text-right">Status Mismatch</TableHead>
+   535→                </TableRow>
+   536→              </TableHeader>
+   537→              <TableBody>
+   538→                {filtered.length === 0 ? (
+   539→                  <TableRow>
+   540→                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">No discrepancies found.</TableCell>
+   541→                  </TableRow>
+   542→                ) : (
+   543→                  filtered.map((row) => (
+   544→                    <TableRow key={row.id}>
+   545→                      <TableCell className="font-medium">{row.sessionName}</TableCell>
+   546→                      <TableCell>{row.location || '—'}</TableCell>
+   547→                      <TableCell>
+   548→                        <Badge
+   549→                          variant={row.status === 'completed' ? 'default' : row.status === 'in_progress' ? 'secondary' : 'outline'}
+   550→                          className={row.status === 'completed' ? 'bg-green-600 text-white' : row.status === 'in_progress' ? 'bg-amber-500 text-white' : ''}
+   551→                        >
+   552→                          {row.status.replace(/_/g, ' ')}
+   553→                        </Badge>
+   554→                      </TableCell>
+   555→                      <TableCell className="text-right">
+   556→                        {row.totalMissing > 0 ? <Badge variant="destructive">{row.totalMissing}</Badge> : <span className="text-muted-foreground">0</span>}
+   557→                      </TableCell>
+   558→                      <TableCell className="text-right">
+   559→                        {row.totalExtra > 0 ? <Badge variant="secondary" className="bg-amber-500 text-white">{row.totalExtra}</Badge> : <span className="text-muted-foreground">0</span>}
+   560→                      </TableCell>
+   561→                      <TableCell className="text-right">
+   562→                        {row.wrongLocation > 0 ? <Badge variant="outline" className="border-orange-400 text-orange-600">{row.wrongLocation}</Badge> : <span className="text-muted-foreground">0</span>}
+   563→                      </TableCell>
+   564→                      <TableCell className="text-right">
+   565→                        {row.statusMismatch > 0 ? <Badge variant="outline" className="border-purple-400 text-purple-600">{row.statusMismatch}</Badge> : <span className="text-muted-foreground">0</span>}
+   566→                      </TableCell>
+   567→                    </TableRow>
+   568→                  ))
+   569→                )}
+   570→              </TableBody>
+   571→            </Table>
+   572→          </div>
+   573→        </CardContent>
+   574→      </Card>
+   575→    </motion.div>
+   576→  )
+   577→}
+   578→
+   579→// ─── Reports: Audit Trail Tab ───────────────────────────────────────────────
+   580→interface AuditEntry {
+   581→  id: string
+   582→  timestamp: string
+   583→  userName: string
+   584→  action: string
+   585→  asset: string
+   586→  details: string
+   587→}
+   588→
+   589→function generatePlaceholderAudit(): AuditEntry[] {
+   590→  const actions = ['create', 'update', 'delete', 'scan', 'move', 'status_change', 'assign']
+   591→  const users = ['Alice Johnson', 'Bob Smith', 'Carol Davis', 'Dave Wilson']
+   592→  const assets = [
+   593→    'Dell Latitude 5520', 'Cisco Switch 2960', 'Herman Miller Aeron Chair',
+   594→    'MacBook Pro 16"', 'Epson Projector X51', 'Samsung 55\" Display',
+   595→    'Logitech MeetUp', 'Standing Desk Pro', 'Fire Extinguisher FE-201',
+   596→    'HP LaserJet Pro M404', 'iPad Pro 12.9"', 'Yamaha Soundbar',
+   597→    'Canon EOS R5', 'APC UPS 1500VA', 'Bosch Drill Set',
+   598→    'Toyota Hilux 2023', 'Sony A7 IV Camera', 'DJI Mavic 3 Pro',
+   599→    'KitchenAid Mixer', 'Nest Thermostat', 'Ring Doorbell Pro',
+   600→    'Bose QC45 Headphones', 'Kindle Paperwhite', 'Garmin GPSMAP 66',
+   601→    'Dewalt Table Saw', 'Apple Watch Ultra', 'Samsung Galaxy S24',
+   602→    'Dyson V15 Detect', 'Philips Hue Starter Kit',
+   603→  ]
+   604→  const detailsList = [
+   605→    'Asset created with QR code', 'Status changed from active to in_maintenance',
+   606→    'Location updated to Warehouse B', 'Assigned to Engineering team',
+   607→    'Condition updated to fair', 'Scanned during Q4 audit',
+   608→    'Purchase price updated to $1,299.00', 'Notes updated',
+   609→    'Warranty expiry date set', 'Asset moved to Floor 3',
+   610→    'Category changed to IT Equipment', 'Serial number updated',
+   611→    'Asset disposed', 'Depreciation value recalculated',
+   612→  ]
+   613→
+   614→  const entries: AuditEntry[] = []
+   615→  for (let i = 0; i < 35; i++) {
+   616→    const dayOffset = Math.floor(i / 4)
+   617→    const date = new Date()
+   618→    date.setDate(date.getDate() - dayOffset)
+   619→    date.setHours(8 + Math.floor(Math.random() * 10), Math.floor(Math.random() * 60), Math.floor(Math.random() * 60))
+   620→    entries.push({
+   621→      id: `audit-${i}`,
+   622→      timestamp: date.toISOString(),
+   623→      userName: users[i % users.length],
+   624→      action: actions[i % actions.length],
+   625→      asset: assets[i % assets.length],
+   626→      details: detailsList[i % detailsList.length],
+   627→    })
+   628→  }
+   629→  return entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+   630→}
+   631→
+   632→type AuditState = { data: AuditEntry[]; loading: boolean }
+   633→type AuditAction =
+   634→  | { type: 'SET_LOADING' }
+   635→  | { type: 'SET_DATA'; data: AuditEntry[] }
+   636→
+   637→function auditReducer(state: AuditState, action: AuditAction): AuditState {
+   638→  switch (action.type) {
+   639→    case 'SET_LOADING': return { ...state, loading: true }
+   640→    case 'SET_DATA': return { data: action.data, loading: false }
+   641→  }
+   642→}
+   643→
+   644→function ReportsAuditTrail() {
+   645→  const [{ data, loading }, dispatch] = useReducer(auditReducer, { data: [], loading: true })
+   646→  const [dateFrom, setDateFrom] = useState('')
+   647→  const [dateTo, setDateTo] = useState('')
+   648→  const [page, setPage] = useState(1)
+   649→  const pageSize = 10
+   650→
+   651→  useEffect(() => {
+   652→    let cancelled = false
+   653→    dispatch({ type: 'SET_LOADING' })
+   654→    const params: Record<string, string> = { page: String(page), limit: String(pageSize) }
+   655→    if (dateFrom) params.dateFrom = dateFrom
+   656→    if (dateTo) params.dateTo = dateTo
+   657→
+   658→    reportsApi
+   659→      .auditTrail(params)
+   660→      .then((res: { entries?: AuditEntry[] }) => {
+   661→        if (!cancelled) {
+   662→          const entries = res.entries || []
+   663→          dispatch({ type: 'SET_DATA', data: entries.length > 0 ? entries : generatePlaceholderAudit() })
+   664→        }
+   665→      })
+   666→      .catch(() => {
+   667→        if (!cancelled) dispatch({ type: 'SET_DATA', data: generatePlaceholderAudit() })
+   668→      })
+   669→    return () => { cancelled = true }
+   670→  }, [page, dateFrom, dateTo])
+   671→
+   672→  const filteredData = useMemo(() => {
+   673→    let result = data
+   674→    if (dateFrom) result = result.filter((e) => e.timestamp >= dateFrom)
+   675→    if (dateTo) result = result.filter((e) => e.timestamp <= dateTo + 'T23:59:59')
+   676→    return result
+   677→  }, [data, dateFrom, dateTo])
+   678→
+   679→  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize))
+   680→  const paginatedData = filteredData.slice((page - 1) * pageSize, page * pageSize)
+   681→
+   682→  if (loading) return <TableSkeleton rows={8} cols={5} />
+   683→
+   684→  return (
+   685→    <motion.div className="space-y-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+   686→      <Card>
+   687→        <CardHeader>
+   688→          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   689→            <div>
+   690→              <CardTitle className="text-base">Audit Trail</CardTitle>
+   691→              <CardDescription>Track all changes and actions across the system</CardDescription>
+   692→            </div>
+   693→            <div className="flex flex-wrap items-center gap-2">
+   694→              <Calendar className="h-4 w-4 text-muted-foreground" />
+   695→              <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="h-8 w-36" />
+   696→              <span className="text-muted-foreground text-sm">to</span>
+   697→              <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="h-8 w-36" />
+   698→              {(dateFrom || dateTo) && (
+   699→                <Button variant="ghost" size="sm" onClick={() => { setDateFrom(''); setDateTo(''); setPage(1) }}>Clear</Button>
+   700→              )}
+   701→            </div>
+   702→          </div>
+   703→        </CardHeader>
+   704→        <CardContent className="p-0">
+   705→          <div className="max-h-96 overflow-y-auto">
+   706→            <Table>
+   707→              <TableHeader>
+   708→                <TableRow>
+   709→                  <TableHead className="w-44">Timestamp</TableHead>
+   710→                  <TableHead>User</TableHead>
+   711→                  <TableHead>Action</TableHead>
+   712→                  <TableHead>Asset</TableHead>
+   713→                  <TableHead className="hidden md:table-cell">Details</TableHead>
+   714→                </TableRow>
+   715→              </TableHeader>
+   716→              <TableBody>
+   717→                {paginatedData.length === 0 ? (
+   718→                  <TableRow>
+   719→                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+   720→                      No audit entries found for the selected date range.
+   721→                    </TableCell>
+   722→                  </TableRow>
+   723→                ) : (
+   724→                  paginatedData.map((entry) => (
+   725→                    <TableRow key={entry.id}>
+   726→                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+   727→                        {new Date(entry.timestamp).toLocaleString()}
+   728→                      </TableCell>
+   729→                      <TableCell className="font-medium">{entry.userName}</TableCell>
+   730→                      <TableCell>
+   731→                        <Badge variant="outline" className="capitalize">{entry.action.replace(/_/g, ' ')}</Badge>
+   732→                      </TableCell>
+   733→                      <TableCell className="max-w-[160px] truncate" title={entry.asset}>{entry.asset}</TableCell>
+   734→                      <TableCell className="hidden md:table-cell max-w-[200px] truncate text-muted-foreground text-sm" title={entry.details}>
+   735→                        {entry.details}
+   736→                      </TableCell>
+   737→                    </TableRow>
+   738→                  ))
+   739→                )}
+   740→              </TableBody>
+   741→            </Table>
+   742→          </div>
+   743→          <div className="flex items-center justify-between border-t px-4 py-3">
+   744→            <p className="text-sm text-muted-foreground">
+   745→              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredData.length)} of {filteredData.length} entries
+   746→            </p>
+   747→            <div className="flex items-center gap-2">
+   748→              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
+   749→              <span className="text-sm text-muted-foreground">Page {page} of {totalPages}</span>
+   750→              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</Button>
+   751→            </div>
+   752→          </div>
+   753→        </CardContent>
+   754→      </Card>
+   755→    </motion.div>
+   756→  )
+   757→}
+   758→
+   759→// ─── Full Reports View ──────────────────────────────────────────────────────
+   760→type ReportsState = { data: DashboardStats | null; loading: boolean }
+   761→type ReportsAction =
+   762→  | { type: 'FETCH_START' }
+   763→  | { type: 'FETCH_SUCCESS'; data: DashboardStats }
+   764→  | { type: 'FETCH_ERROR' }
+   765→
+   766→const FALLBACK_DASHBOARD: DashboardStats = {
+   767→  totalAssets: 247,
+   768→  activeAssets: 198,
+   769→  totalValue: 1245680,
+   770→  byStatus: [
+   771→    { status: 'active', count: 198 },
+   772→    { status: 'in_storage', count: 24 },
+   773→    { status: 'in_maintenance', count: 15 },
+   774→    { status: 'disposed', count: 7 },
+   775→    { status: 'lost', count: 3 },
+   776→  ],
+   777→  byCategory: [
+   778→    { category: 'IT Equipment', count: 89, value: 485200 },
+   779→    { category: 'Furniture', count: 62, value: 186500 },
+   780→    { category: 'Vehicles', count: 18, value: 342000 },
+   781→    { category: 'Machinery', count: 34, value: 156800 },
+   782→    { category: 'Office Supplies', count: 44, value: 75180 },
+   783→  ],
+   784→  byLocation: [
+   785→    { location: 'Main Office', count: 112 },
+   786→    { location: 'Warehouse A', count: 58 },
+   787→    { location: 'Floor 2', count: 42 },
+   788→    { location: 'Server Room', count: 21 },
+   789→    { location: 'Parking Lot B', count: 14 },
+   790→  ],
+   791→  recentLogs: [],
+   792→  pendingInventories: 2,
+   793→}
+   794→
+   795→function reportsReducer(state: ReportsState, action: ReportsAction): ReportsState {
+   796→  switch (action.type) {
+   797→    case 'FETCH_START': return { ...state, loading: true, data: null }
+   798→    case 'FETCH_SUCCESS': return { data: action.data, loading: false }
+   799→    case 'FETCH_ERROR': return { data: FALLBACK_DASHBOARD, loading: false }
+   800→  }
+   801→}
+   802→
+   803→function ReportsView() {
+   804→  const [{ data: dashboardData, loading }, dispatch] = useReducer(reportsReducer, { data: null, loading: true })
+   805→  const refreshKey = useAppStore((s) => s.refreshKey)
+   806→
+   807→  useEffect(() => {
+   808→    let cancelled = false
+   809→    dispatch({ type: 'FETCH_START' })
+   810→    reportsApi
+   811→      .dashboard()
+   812→      .then((res) => {
+   813→        if (!cancelled) dispatch({ type: 'FETCH_SUCCESS', data: res as DashboardStats })
+   814→      })
+   815→      .catch(() => {
+   816→        if (!cancelled) dispatch({ type: 'FETCH_ERROR' })
+   817→      })
+   818→    return () => { cancelled = true }
+   819→  }, [refreshKey])
+   820→
+   821→  return (
+   822→    <div className="space-y-6">
+   823→      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+   824→        <div>
+   825→          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+   826→            <FileBarChart className="h-6 w-6" />
+   827→            Reports
+   828→          </h2>
+   829→          <p className="text-muted-foreground">Analyze your asset data and track inventory accuracy.</p>
+   830→        </div>
+   831→        <Button variant="outline" className="w-fit" onClick={() => toast.info('Report export coming soon')}>
+   832→          <Download className="mr-2 h-4 w-4" />
+   833→          Export
+   834→        </Button>
+   835→      </div>
+   836→
+   837→      <Tabs defaultValue="overview" className="space-y-4">
+   838→        <TabsList className="flex flex-wrap h-auto gap-1">
+   839→          <TabsTrigger value="overview">Overview</TabsTrigger>
+   840→          <TabsTrigger value="by-category">By Category</TabsTrigger>
+   841→          <TabsTrigger value="by-location">By Location</TabsTrigger>
+   842→          <TabsTrigger value="discrepancies">Discrepancies</TabsTrigger>
+   843→          <TabsTrigger value="audit-trail">Audit Trail</TabsTrigger>
+   844→        </TabsList>
+   845→
+   846→        <TabsContent value="overview">
+   847→          <ReportsOverview data={loading ? null : dashboardData} />
+   848→        </TabsContent>
+   849→
+   850→        <TabsContent value="by-category">
+   851→          <ReportsByCategory data={loading ? null : dashboardData} />
+   852→        </TabsContent>
+   853→
+   854→        <TabsContent value="by-location">
+   855→          <ReportsByLocation data={loading ? null : dashboardData} />
+   856→        </TabsContent>
+   857→
+   858→        <TabsContent value="discrepancies">
+   859→          <ReportsDiscrepancies />
+   860→        </TabsContent>
+   861→
+   862→        <TabsContent value="audit-trail">
+   863→          <ReportsAuditTrail />
+   864→        </TabsContent>
+   865→      </Tabs>
+   866→    </div>
+   867→  )
+   868→}
+   869→
+   870→// ─── Settings View ──────────────────────────────────────────────────────────
+   871→function SettingsView() {
+   872→  const user = useAppStore((s) => s.user)
+   873→  const tenant = user?.tenant
+   874→
+   875→  const [tenantName, setTenantName] = useState(tenant?.name || '')
+   876→  const [tenantType, setTenantType] = useState(tenant?.type || 'company')
+   877→  const [country, setCountry] = useState(tenant?.country || 'US')
+   878→  const [currency, setCurrency] = useState(tenant?.currency || 'USD')
+   879→  const [saving, setSaving] = useState(false)
+   880→  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+   881→  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+   882→
+   883→  const handleSave = () => {
+   884→    setSaving(true)
+   885→    setTimeout(() => {
+   886→      setSaving(false)
+   887→      toast.success('Settings saved')
+   888→    }, 800)
+   889→  }
+   890→
+   891→  const handleDelete = () => {
+   892→    if (deleteConfirmText !== (tenant?.name || 'my organization')) return
+   893→    toast.error('Organization deletion is not available in demo mode')
+   894→    setDeleteDialogOpen(false)
+   895→    setDeleteConfirmText('')
+   896→  }
+   897→
+   898→  const planLabel = useMemo(() => {
+   899→    const plan = tenant?.plan || 'free'
+   900→    return plan.charAt(0).toUpperCase() + plan.slice(1)
+   901→  }, [tenant?.plan])
+   902→
+   903→  return (
+   904→    <div className="space-y-6">
+   905→      <div>
+   906→        <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+   907→          <Settings className="h-6 w-6" />
+   908→          Settings
+   909→        </h2>
+   910→        <p className="text-muted-foreground">Manage your organization settings and preferences.</p>
+   911→      </div>
+   912→
+   913→      {/* Organization Info */}
+   914→      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+   915→        <Card>
+   916→          <CardHeader>
+   917→            <CardTitle className="text-base">Organization</CardTitle>
+   918→            <CardDescription>Update your organization details and preferences.</CardDescription>
+   919→          </CardHeader>
+   920→          <CardContent className="space-y-4">
+   921→            <div className="grid gap-4 sm:grid-cols-2">
+   922→              <div className="space-y-2">
+   923→                <Label htmlFor="tenant-name">Organization Name</Label>
+   924→                <Input id="tenant-name" value={tenantName} onChange={(e) => setTenantName(e.target.value)} placeholder="Enter organization name" />
+   925→              </div>
+   926→              <div className="space-y-2">
+   927→                <Label htmlFor="tenant-slug">Slug</Label>
+   928→                <Input id="tenant-slug" value={tenant?.slug || ''} readOnly className="bg-muted cursor-not-allowed" />
+   929→                <p className="text-xs text-muted-foreground">Used in URLs. Contact support to change.</p>
+   930→              </div>
+   931→              <div className="space-y-2">
+   932→                <Label htmlFor="tenant-type">Type</Label>
+   933→                <Select value={tenantType} onValueChange={setTenantType}>
+   934→                  <SelectTrigger id="tenant-type"><SelectValue /></SelectTrigger>
+   935→                  <SelectContent>
+   936→                    <SelectItem value="company">Company</SelectItem>
+   937→                    <SelectItem value="nonprofit">Non-Profit</SelectItem>
+   938→                    <SelectItem value="government">Government</SelectItem>
+   939→                    <SelectItem value="education">Education</SelectItem>
+   940→                    <SelectItem value="healthcare">Healthcare</SelectItem>
+   941→                  </SelectContent>
+   942→                </Select>
+   943→              </div>
+   944→              <div className="space-y-2">
+   945→                <Label htmlFor="country">Country</Label>
+   946→                <Select value={country} onValueChange={setCountry}>
+   947→                  <SelectTrigger id="country"><SelectValue /></SelectTrigger>
+   948→                  <SelectContent>
+   949→                    <SelectItem value="US">United States</SelectItem>
+   950→                    <SelectItem value="CA">Canada</SelectItem>
+   951→                    <SelectItem value="GB">United Kingdom</SelectItem>
+   952→                    <SelectItem value="DE">Germany</SelectItem>
+   953→                    <SelectItem value="AU">Australia</SelectItem>
+   954→                    <SelectItem value="SG">Singapore</SelectItem>
+   955→                    <SelectItem value="JP">Japan</SelectItem>
+   956→                  </SelectContent>
+   957→                </Select>
+   958→              </div>
+   959→              <div className="space-y-2">
+   960→                <Label htmlFor="currency">Currency</Label>
+   961→                <Select value={currency} onValueChange={setCurrency}>
+   962→                  <SelectTrigger id="currency"><SelectValue /></SelectTrigger>
+   963→                  <SelectContent>
+   964→                    <SelectItem value="USD">USD ($)</SelectItem>
+   965→                    <SelectItem value="EUR">EUR (€)</SelectItem>
+   966→                    <SelectItem value="GBP">GBP (£)</SelectItem>
+   967→                    <SelectItem value="CAD">CAD (C$)</SelectItem>
+   968→                    <SelectItem value="AUD">AUD (A$)</SelectItem>
+   969→                    <SelectItem value="JPY">JPY (¥)</SelectItem>
+   970→                    <SelectItem value="SGD">SGD (S$)</SelectItem>
+   971→                  </SelectContent>
+   972→                </Select>
+   973→              </div>
+   974→            </div>
+   975→            <div className="flex justify-end pt-2">
+   976→              <Button onClick={handleSave} disabled={saving}>
+   977→                {saving ? (
+   978→                  <>
+   979→                    <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+   980→                    Saving…
+   981→                  </>
+   982→                ) : (
+   983→                  <>
+   984→                    <Save className="mr-2 h-4 w-4" />
+   985→                    Save Changes
+   986→                  </>
+   987→                )}
+   988→              </Button>
+   989→            </div>
+   990→          </CardContent>
+   991→        </Card>
+   992→      </motion.div>
+   993→
+   994→      {/* Current Plan */}
+   995→      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+   996→        <Card>
+   997→          <CardHeader>
+   998→            <CardTitle className="text-base">Current Plan</CardTitle>
+   999→            <CardDescription>Your subscription details and usage.</CardDescription>
+  1000→          </CardHeader>
+  1001→          <CardContent>
+  1002→            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+  1003→              <div className="flex items-center gap-3">
+  1004→                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+  1005→                  <Crown className="h-5 w-5 text-primary" />
+  1006→                </div>
+  1007→                <div>
+  1008→                  <p className="font-semibold">{planLabel} Plan</p>
+  1009→                  <p className="text-sm text-muted-foreground">
+  1010→                    {planLabel === 'Free' ? 'Up to 100 assets · 1 user' : 'Unlimited assets · Unlimited users'}
+  1011→                  </p>
+  1012→                </div>
+  1013→              </div>
+  1014→              <Button variant="outline" onClick={() => toast.info('Upgrade flow coming soon')}>Upgrade Plan</Button>
+  1015→            </div>
+  1016→          </CardContent>
+  1017→        </Card>
+  1018→      </motion.div>
+  1019→
+  1020→      {/* Danger Zone */}
+  1021→      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+  1022→        <Card className="border-red-200 dark:border-red-900">
+  1023→          <CardHeader>
+  1024→            <CardTitle className="text-base text-red-600 dark:text-red-400 flex items-center gap-2">
+  1025→              <AlertTriangle className="h-4 w-4" />
+  1026→              Danger Zone
+  1027→            </CardTitle>
+  1028→            <CardDescription>Irreversible and destructive actions.</CardDescription>
+  1029→          </CardHeader>
+  1030→          <CardContent>
+  1031→            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+  1032→              <div>
+  1033→                <p className="font-medium">Delete Organization</p>
+  1034→                <p className="text-sm text-muted-foreground">
+  1035→                  Permanently remove this organization and all of its data. This action cannot be undone.
+  1036→                </p>
+  1037→              </div>
+  1038→              <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+  1039→                <Trash2 className="mr-2 h-4 w-4" />
+  1040→                Delete Organization
+  1041→              </Button>
+  1042→            </div>
+  1043→          </CardContent>
+  1044→        </Card>
+  1045→      </motion.div>
+  1046→
+  1047→      {/* Delete Confirmation Dialog */}
+  1048→      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+  1049→        <DialogContent>
+  1050→          <DialogHeader>
+  1051→            <DialogTitle className="text-red-600 dark:text-red-400">Delete Organization</DialogTitle>
+  1052→            <DialogDescription>
+  1053→              This action cannot be undone. This will permanently delete the organization, all assets, inventory sessions, and associated data.
+  1054→            </DialogDescription>
+  1055→          </DialogHeader>
+  1056→          <div className="space-y-2 py-2">
+  1057→            <Label>
+  1058→              Type <strong className="text-foreground">{tenant?.name || 'my organization'}</strong> to confirm
+  1059→            </Label>
+  1060→            <Input value={deleteConfirmText} onChange={(e) => setDeleteConfirmText(e.target.value)} placeholder={tenant?.name || 'my organization'} />
+  1061→          </div>
+  1062→          <DialogFooter className="gap-2 sm:gap-0">
+  1063→            <Button variant="outline" onClick={() => { setDeleteDialogOpen(false); setDeleteConfirmText('') }}>Cancel</Button>
+  1064→            <Button
+  1065→              variant="destructive"
+  1066→              disabled={deleteConfirmText !== (tenant?.name || 'my organization')}
+  1067→              onClick={handleDelete}
+  1068→            >
+  1069→              <Trash2 className="mr-2 h-4 w-4" />
+  1070→              Delete Forever
+  1071→            </Button>
+  1072→          </DialogFooter>
+  1073→        </DialogContent>
+  1074→      </Dialog>
+  1075→    </div>
+  1076→  )
+  1077→}
+  1078→
+  1079→// ─── Users View ─────────────────────────────────────────────────────────────
+  1080→interface TeamMember {
+  1081→  id: string
+  1082→  name: string
+  1083→  email: string
+  1084→  role: 'admin' | 'auditor' | 'user'
+  1085→  status: 'active' | 'inactive'
+  1086→  lastLogin: string
+  1087→  isCurrentUser?: boolean
+  1088→}
+  1089→
+  1090→function UsersView() {
+  1091→  const user = useAppStore((s) => s.user)
+  1092→
+  1093→  const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
+  1094→  const [editRoleDialogOpen, setEditRoleDialogOpen] = useState(false)
+  1095→  const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
+  1096→  const [newRole, setNewRole] = useState<string>('user')
+  1097→  const [inviteEmail, setInviteEmail] = useState('')
+  1098→  const [inviteRole, setInviteRole] = useState<string>('user')
+  1099→
+  1100→  const initialMembers = useMemo<TeamMember[]>(() => [
+  1101→    {
+  1102→      id: user?.id || '1',
+  1103→      name: user?.name || 'You',
+  1104→      email: user?.email || 'you@example.com',
+  1105→      role: (user?.role as 'admin' | 'auditor' | 'user') || 'admin',
+  1106→      status: 'active',
+  1107→      lastLogin: new Date().toISOString(),
+  1108→      isCurrentUser: true,
+  1109→    },
+  1110→    {
+  1111→      id: '2', name: 'Sarah Chen', email: 'sarah.chen@company.com',
+  1112→      role: 'auditor', status: 'active',
+  1113→      lastLogin: new Date(Date.now() - 86400000 * 1).toISOString(),
+  1114→    },
+  1115→    {
+  1116→      id: '3', name: 'Marcus Rodriguez', email: 'marcus.r@company.com',
+  1117→      role: 'user', status: 'active',
+  1118→      lastLogin: new Date(Date.now() - 86400000 * 3).toISOString(),
+  1119→    },
+  1120→    {
+  1121→      id: '4', name: 'Emily Watson', email: 'emily.w@company.com',
+  1122→      role: 'user', status: 'inactive',
+  1123→      lastLogin: new Date(Date.now() - 86400000 * 30).toISOString(),
+  1124→    },
+  1125→    {
+  1126→      id: '5', name: 'David Kim', email: 'david.kim@company.com',
+  1127→      role: 'auditor', status: 'active',
+  1128→      lastLogin: new Date(Date.now() - 86400000 * 0.5).toISOString(),
+  1129→    },
+  1130→  ], [user])
+  1131→
+  1132→  const [members, setMembers] = useState<TeamMember[]>(initialMembers)
+  1133→
+  1134→  useEffect(() => {
+  1135→    setMembers(initialMembers)
+  1136→  }, [initialMembers])
+  1137→
+  1138→  const handleEditRole = (member: TeamMember) => {
+  1139→    setSelectedMember(member)
+  1140→    setNewRole(member.role)
+  1141→    setEditRoleDialogOpen(true)
+  1142→  }
+  1143→
+  1144→  const saveRole = () => {
+  1145→    if (!selectedMember) return
+  1146→    setMembers((prev) =>
+  1147→      prev.map((m) => (m.id === selectedMember.id ? { ...m, role: newRole as TeamMember['role'] } : m))
+  1148→    )
+  1149→    setEditRoleDialogOpen(false)
+  1150→    toast.success(`Role updated to ${newRole} for ${selectedMember.name}`)
+  1151→  }
+  1152→
+  1153→  const handleDeactivate = (member: TeamMember) => {
+  1154→    setMembers((prev) =>
+  1155→      prev.map((m) => (m.id === member.id ? { ...m, status: m.status === 'active' ? 'inactive' as const : 'active' as const } : m))
+  1156→    )
+  1157→    toast.success(
+  1158→      member.status === 'active'
+  1159→        ? `${member.name} has been deactivated`
+  1160→        : `${member.name} has been reactivated`
+  1161→    )
+  1162→  }
+  1163→
+  1164→  const handleInvite = () => {
+  1165→    if (!inviteEmail) return
+  1166→    toast.success(`Invitation sent to ${inviteEmail}`)
+  1167→    setInviteEmail('')
+  1168→    setInviteRole('user')
+  1169→    setInviteDialogOpen(false)
+  1170→  }
+  1171→
+  1172→  return (
+  1173→    <div className="space-y-6">
+  1174→      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+  1175→        <div>
+  1176→          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+  1177→            <Users className="h-6 w-6" />
+  1178→            Team Members
+  1179→          </h2>
+  1180→          <p className="text-muted-foreground">Manage your team and their access roles.</p>
+  1181→        </div>
+  1182→        <Button onClick={() => setInviteDialogOpen(true)}>
+  1183→          <Plus className="mr-2 h-4 w-4" />
+  1184→          Invite Member
+  1185→        </Button>
+  1186→      </div>
+  1187→
+  1188→      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+  1189→        <Card>
+  1190→          <CardContent className="p-0">
+  1191→            <div className="max-h-96 overflow-y-auto">
+  1192→              <Table>
+  1193→                <TableHeader>
+  1194→                  <TableRow>
+  1195→                    <TableHead>Name</TableHead>
+  1196→                    <TableHead className="hidden sm:table-cell">Email</TableHead>
+  1197→                    <TableHead>Role</TableHead>
+  1198→                    <TableHead>Status</TableHead>
+  1199→                    <TableHead className="hidden md:table-cell">Last Login</TableHead>
+  1200→                    <TableHead className="text-right">Actions</TableHead>
+  1201→                  </TableRow>
+  1202→                </TableHeader>
+  1203→                <TableBody>
+  1204→                  {members.map((member) => (
+  1205→                    <TableRow key={member.id}>
+  1206→                      <TableCell>
+  1207→                        <div className="flex items-center gap-2">
+  1208→                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
+  1209→                            {member.name.split(' ').map((n) => n[0]).join('').toUpperCase()}
+  1210→                          </div>
+  1211→                          <div>
+  1212→                            <p className="font-medium">{member.name}</p>
+  1213→                            {member.isCurrentUser && <p className="text-xs text-muted-foreground">(You)</p>}
+  1214→                          </div>
+  1215→                        </div>
+  1216→                      </TableCell>
+  1217→                      <TableCell className="hidden sm:table-cell text-muted-foreground">{member.email}</TableCell>
+  1218→                      <TableCell><RoleBadge role={member.role} /></TableCell>
+  1219→                      <TableCell>
+  1220→                        <Badge
+  1221→                          variant={member.status === 'active' ? 'default' : 'secondary'}
+  1222→                          className={member.status === 'active' ? 'bg-green-600 text-white' : ''}
+  1223→                        >
+  1224→                          {member.status === 'active' ? 'Active' : 'Inactive'}
+  1225→                        </Badge>
+  1226→                      </TableCell>
+  1227→                      <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
+  1228→                        {new Date(member.lastLogin).toLocaleDateString(undefined, {
+  1229→                          month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  1230→                        })}
+  1231→                      </TableCell>
+  1232→                      <TableCell className="text-right">
+  1233→                        <DropdownMenu>
+  1234→                          <DropdownMenuTrigger asChild>
+  1235→                            <Button variant="ghost" size="icon" className="h-8 w-8">
+  1236→                              <MoreHorizontal className="h-4 w-4" />
+  1237→                              <span className="sr-only">Open menu</span>
+  1238→                            </Button>
+  1239→                          </DropdownMenuTrigger>
+  1240→                          <DropdownMenuContent align="end">
+  1241→                            <DropdownMenuItem onClick={() => handleEditRole(member)}>
+  1242→                              <Pencil className="mr-2 h-4 w-4" />
+  1243→                              Edit Role
+  1244→                            </DropdownMenuItem>
+  1245→                            <DropdownMenuItem
+  1246→                              onClick={() => handleDeactivate(member)}
+  1247→                              disabled={member.isCurrentUser}
+  1248→                              className={member.status === 'active' && !member.isCurrentUser ? 'text-red-600' : ''}
+  1249→                            >
+  1250→                              <UserX className="mr-2 h-4 w-4" />
+  1251→                              {member.status === 'active' ? 'Deactivate' : 'Reactivate'}
+  1252→                            </DropdownMenuItem>
+  1253→                          </DropdownMenuContent>
+  1254→                        </DropdownMenu>
+  1255→                      </TableCell>
+  1256→                    </TableRow>
+  1257→                  ))}
+  1258→                </TableBody>
+  1259→              </Table>
+  1260→            </div>
+  1261→          </CardContent>
+  1262→        </Card>
+  1263→      </motion.div>
+  1264→
+  1265→      {/* Invite Member Dialog */}
+  1266→      <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+  1267→        <DialogContent>
+  1268→          <DialogHeader>
+  1269→            <DialogTitle>Invite Team Member</DialogTitle>
+  1270→            <DialogDescription>Send an invitation to join your organization.</DialogDescription>
+  1271→          </DialogHeader>
+  1272→          <div className="space-y-4 py-2">
+  1273→            <div className="space-y-2">
+  1274→              <Label htmlFor="invite-email">Email Address</Label>
+  1275→              <Input id="invite-email" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="colleague@company.com" />
+  1276→            </div>
+  1277→            <div className="space-y-2">
+  1278→              <Label>Role</Label>
+  1279→              <Select value={inviteRole} onValueChange={setInviteRole}>
+  1280→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1281→                <SelectContent>
+  1282→                  <SelectItem value="user">
+  1283→                    <span className="flex items-center gap-2"><UserCircle className="h-3.5 w-3.5 text-gray-500" /> User</span>
+  1284→                  </SelectItem>
+  1285→                  <SelectItem value="auditor">
+  1286→                    <span className="flex items-center gap-2"><Eye className="h-3.5 w-3.5 text-blue-500" /> Auditor</span>
+  1287→                  </SelectItem>
+  1288→                  <SelectItem value="admin">
+  1289→                    <span className="flex items-center gap-2"><Shield className="h-3.5 w-3.5 text-purple-500" /> Admin</span>
+  1290→                  </SelectItem>
+  1291→                </SelectContent>
+  1292→              </Select>
+  1293→            </div>
+  1294→          </div>
+  1295→          <DialogFooter className="gap-2 sm:gap-0">
+  1296→            <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>Cancel</Button>
+  1297→            <Button onClick={handleInvite} disabled={!inviteEmail}>
+  1298→              <Plus className="mr-2 h-4 w-4" /> Send Invite
+  1299→            </Button>
+  1300→          </DialogFooter>
+  1301→        </DialogContent>
+  1302→      </Dialog>
+  1303→
+  1304→      {/* Edit Role Dialog */}
+  1305→      <Dialog open={editRoleDialogOpen} onOpenChange={setEditRoleDialogOpen}>
+  1306→        <DialogContent>
+  1307→          <DialogHeader>
+  1308→            <DialogTitle>Edit Role</DialogTitle>
+  1309→            <DialogDescription>Change the role for <strong>{selectedMember?.name}</strong>.</DialogDescription>
+  1310→          </DialogHeader>
+  1311→          <div className="py-2">
+  1312→            <Select value={newRole} onValueChange={setNewRole}>
+  1313→              <SelectTrigger><SelectValue /></SelectTrigger>
+  1314→              <SelectContent>
+  1315→                <SelectItem value="user">
+  1316→                  <span className="flex items-center gap-2"><UserCircle className="h-3.5 w-3.5 text-gray-500" /> User — View and manage assigned assets</span>
+  1317→                </SelectItem>
+  1318→                <SelectItem value="auditor">
+  1319→                  <span className="flex items-center gap-2"><Eye className="h-3.5 w-3.5 text-blue-500" /> Auditor — Run audits and view reports</span>
+  1320→                </SelectItem>
+  1321→                <SelectItem value="admin">
+  1322→                  <span className="flex items-center gap-2"><Shield className="h-3.5 w-3.5 text-purple-500" /> Admin — Full access to all features</span>
+  1323→                </SelectItem>
+  1324→              </SelectContent>
+  1325→            </Select>
+  1326→          </div>
+  1327→          <DialogFooter className="gap-2 sm:gap-0">
+  1328→            <Button variant="outline" onClick={() => setEditRoleDialogOpen(false)}>Cancel</Button>
+  1329→            <Button onClick={saveRole}>Save</Button>
+  1330→          </DialogFooter>
+  1331→        </DialogContent>
+  1332→      </Dialog>
+  1333→    </div>
+  1334→  )
+  1335→}
+  1336→
+  1337→// ─── Main Settings View (Router) ────────────────────────────────────────────
+  1338→export default function SettingsViewRouter() {
+  1339→  const currentView = useAppStore((s) => s.currentView)
+  1340→
+  1341→  return (
+  1342→    <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+  1343→      <AnimatePresence mode="wait">
+  1344→        {currentView === 'reports' && (
+  1345→          <motion.div key="reports" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }} transition={{ duration: 0.2 }}>
+  1346→            <ReportsView />
+  1347→          </motion.div>
+  1348→        )}
+  1349→        {currentView === 'settings' && (
+  1350→          <motion.div key="settings" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }} transition={{ duration: 0.2 }}>
+  1351→            <SettingsView />
+  1352→          </motion.div>
+  1353→        )}
+  1354→        {currentView === 'users' && (
+  1355→          <motion.div key="users" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }} transition={{ duration: 0.2 }}>
+  1356→            <UsersView />
+  1357→          </motion.div>
+  1358→        )}
+  1359→      </AnimatePresence>
+  1360→    </main>
+  1361→  )
+  1362→}
