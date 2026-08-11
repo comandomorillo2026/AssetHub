@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
-import { createHash } from 'crypto'
+import { hashPassword } from '@/lib/jwt'
 
 export async function POST(req: NextRequest) {
   if (req.headers.get('x-super-admin-token') !== 'zeitgeist-super-admin-2024') {
@@ -8,11 +8,11 @@ export async function POST(req: NextRequest) {
   }
   const db = new PrismaClient()
   try {
-    const hash = createHash('sha256').update('super2024zeitgeist-salt-2024').digest('hex')
+    const superHash = hashPassword('SuperAdmin2024!')
     await db.superAdmin.upsert({
       where: { email: 'admin@zeitgeist.co' },
       update: {},
-      create: { email: 'admin@zeitgeist.co', passwordHash: hash, name: 'ZBS Super Admin' }
+      create: { email: 'admin@zeitgeist.co', passwordHash: superHash, name: 'ZBS Super Admin' }
     })
     const planData = [
       { name: 'Starter', slug: 'starter', priceMonthly: 499, maxAssets: 500, maxUsers: 10, maxLocations: 5, features: '[]', sortOrder: 0 },
@@ -27,7 +27,12 @@ export async function POST(req: NextRequest) {
       update: {},
       create: { name: 'Port of Spain Municipal Corporation', slug: 'pos-municipal-corp', type: 'government', contactName: 'Anisa Mohammed', contactEmail: 'anisa@posmc.gov.tt', contactPhone: '+1-868-627-2246', address: 'City Hall, Knox Street, Port of Spain', country: 'Trinidad and Tobago', currency: 'TTD', isActive: true }
     })
-    const userHash = createHash('sha256').update('demo123zeitgeist-salt-2024').digest('hex')
+    await db.tenantSettings.upsert({
+      where: { tenantId: tenant.id },
+      update: {},
+      create: { tenantId: tenant.id }
+    })
+    const userHash = hashPassword('demo123')
     await db.user.upsert({
       where: { email_tenantId: { email: 'admin@demo.com', tenantId: tenant.id } },
       update: {},
