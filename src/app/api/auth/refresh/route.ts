@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify the JWT is valid
-    const payload = verifyRefreshToken(refreshToken);
+    const payload = await verifyRefreshToken(refreshToken);
 
     // Check it exists in DB and not expired
     const stored = await db.refreshToken.findUnique({
