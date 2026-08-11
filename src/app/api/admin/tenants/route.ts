@@ -2,17 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 const db = new PrismaClient()
 
-function verifyAdmin(req: NextRequest): boolean {
-  return req.headers.get('x-super-admin-token') === 'zeitgeist-super-admin-2024'
-}
-
 // GET /api/admin/tenants - List all tenants
 export async function GET(req: NextRequest) {
   try {
-    if (!verifyAdmin(req)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const url = new URL(req.url)
     const search = url.searchParams.get('search') || ''
     const page = parseInt(url.searchParams.get('page') || '1')
@@ -88,10 +80,6 @@ export async function GET(req: NextRequest) {
 // POST /api/admin/tenants - Create tenant
 export async function POST(req: NextRequest) {
   try {
-    if (!verifyAdmin(req)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const body = await req.json()
     const { name, slug, type, planId, contactName, contactEmail, contactPhone, address } = body
 

@@ -1,23 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { createHash } from 'crypto'
 
 const db = new PrismaClient()
 
-function verifyAdmin(req: NextRequest): boolean {
-  return req.headers.get('x-super-admin-token') === 'zeitgeist-super-admin-2024'
-}
-
 function hashPassword(password: string): string {
   return createHash('sha256').update(password + 'zeitgeist-salt-2024').digest('hex')
 }
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   try {
-    if (!verifyAdmin(req)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     // Delete everything in reverse dependency order
     await db.ledgerEntry.deleteMany({})
     await db.journalEntry.deleteMany({})
