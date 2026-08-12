@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { useTheme } from 'next-themes'
 import {
   Shield,
   LayoutDashboard,
@@ -10,15 +11,20 @@ import {
   ClipboardCheck,
   BarChart3,
   Settings,
+  Users as UsersIcon,
   LogOut,
   ChevronLeft,
   Wifi,
   WifiOff,
   RefreshCw,
   Wrench,
+  ClipboardList,
+  ArrowRightLeft,
   Bot,
   Upload,
   Bell,
+  Sun,
+  Moon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -45,10 +51,13 @@ const NAV_ITEMS: NavItem[] = [
   { view: 'scan', label: 'Scan QR', icon: ScanLine },
   { view: 'inventory', label: 'Inventory', icon: ClipboardCheck },
   { view: 'maintenance', label: 'Maintenance', icon: Wrench },
+  { view: 'work-orders', label: 'Work Orders', icon: ClipboardList },
+  { view: 'checkouts', label: 'Checkouts', icon: ArrowRightLeft },
   { view: 'reports', label: 'Reports', icon: BarChart3 },
   { view: 'notifications', label: 'Alerts', icon: Bell },
   { view: 'ai-assistant', label: 'AI Assistant', icon: Bot },
   { view: 'migration', label: 'Import', icon: Upload },
+  { view: 'users', label: 'Team', icon: UsersIcon },
   { view: 'settings', label: 'Settings', icon: Settings },
 ]
 
@@ -74,6 +83,7 @@ function SidebarContent({
   const isOnline = useAppStore((s) => s.isOnline)
   const pendingSyncCount = useAppStore((s) => s.pendingSyncCount)
   const logout = useAppStore((s) => s.logout)
+  const { theme, setTheme } = useTheme()
 
   function handleNav(view: View) {
     navigate(view)
@@ -144,9 +154,16 @@ function SidebarContent({
 
       {/* Bottom Section */}
       <div className="shrink-0">
-        {/* Sync Status */}
-        <div className="px-3 py-2">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/60">
+        {/* Theme Toggle + Sync Status */}
+        <div className="px-3 py-2 flex items-center gap-2">
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-800/60 text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors shrink-0"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+          </button>
+          <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/60">
             {isOnline ? (
               <>
                 <Wifi className="w-3.5 h-3.5 text-emerald-400" />

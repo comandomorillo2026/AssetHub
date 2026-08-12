@@ -251,3 +251,83 @@ export const syncApi = {
 export const qrApi = {
   resolve: (code: string) => request(`/api/qr/${encodeURIComponent(code)}`),
 }
+
+// Search API
+export const searchApi = {
+  global: (q: string, types?: string) => {
+    const params = new URLSearchParams({ q: q.length >= 2 ? q : '' })
+    if (types) params.set('types', types)
+    return request('/api/search?' + params.toString())
+  },
+}
+
+// PDF Export API
+export const exportPdfApi = {
+  pdf: (type: string, params?: Record<string, string>) => {
+    const searchParams = new URLSearchParams({ type, format: 'html', ...params })
+    window.open(`/api/export/pdf?${searchParams.toString()}`, '_blank')
+  },
+}
+
+// Warranty Alerts API
+export const warrantyAlertsApi = {
+  list: (days?: number) => request(`/api/assets/warranty-alerts?days=${days || 30}`),
+}
+
+// Asset Timeline API
+export const assetTimelineApi = {
+  get: (assetId: string, limit?: number, offset?: number) => {
+    const params = new URLSearchParams()
+    if (limit) params.set('limit', String(limit))
+    if (offset) params.set('offset', String(offset))
+    return request(`/api/assets/${assetId}/timeline?${params.toString()}`)
+  },
+}
+
+// Checkouts API
+export const checkoutsApi = {
+  list: (params?: Record<string, string>) => request('/api/checkouts?' + new URLSearchParams(params || {}).toString()),
+  create: (data: Record<string, unknown>) => request('/api/checkouts', { method: 'POST', body: JSON.stringify(data) }),
+  get: (id: string) => request(`/api/checkouts/${id}`),
+  return: (id: string, data: Record<string, unknown>) => request(`/api/checkouts/${id}/return`, { method: 'POST', body: JSON.stringify(data) }),
+  delete: (id: string) => request(`/api/checkouts/${id}`, { method: 'DELETE' }),
+}
+
+// Reservations API
+export const reservationsApi = {
+  list: (params?: Record<string, string>) => request('/api/reservations?' + new URLSearchParams(params || {}).toString()),
+  create: (data: Record<string, unknown>) => request('/api/reservations', { method: 'POST', body: JSON.stringify(data) }),
+  get: (id: string) => request(`/api/reservations/${id}`),
+  update: (id: string, data: Record<string, unknown>) => request(`/api/reservations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request(`/api/reservations/${id}`, { method: 'DELETE' }),
+  approve: (id: string, data?: Record<string, unknown>) => request(`/api/reservations/${id}/approve`, { method: 'POST', body: JSON.stringify(data || {}) }),
+  reject: (id: string, data: Record<string, unknown>) => request(`/api/reservations/${id}/reject`, { method: 'POST', body: JSON.stringify(data) }),
+  cancel: (id: string) => request(`/api/reservations/${id}/cancel`, { method: 'POST' }),
+  fulfill: (id: string) => request(`/api/reservations/${id}/fulfill`, { method: 'POST' }),
+  complete: (id: string) => request(`/api/reservations/${id}/complete`, { method: 'POST' }),
+}
+
+// Work Orders API
+export const workOrdersApi = {
+  list: (params?: Record<string, string>) => request('/api/work-orders?' + new URLSearchParams(params || {}).toString()),
+  create: (data: Record<string, unknown>) => request('/api/work-orders', { method: 'POST', body: JSON.stringify(data) }),
+  get: (id: string) => request(`/api/work-orders/${id}`),
+  update: (id: string, data: Record<string, unknown>) => request(`/api/work-orders/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request(`/api/work-orders/${id}`, { method: 'DELETE' }),
+  approve: (id: string, data?: Record<string, unknown>) => request(`/api/work-orders/${id}/approve`, { method: 'POST', body: JSON.stringify(data || {}) }),
+  reject: (id: string, data: Record<string, unknown>) => request(`/api/work-orders/${id}/reject`, { method: 'POST', body: JSON.stringify(data) }),
+  assign: (id: string, data: Record<string, unknown>) => request(`/api/work-orders/${id}/assign`, { method: 'POST', body: JSON.stringify(data) }),
+  complete: (id: string) => request(`/api/work-orders/${id}/complete`, { method: 'POST' }),
+  close: (id: string, data?: Record<string, unknown>) => request(`/api/work-orders/${id}/close`, { method: 'POST', body: JSON.stringify(data || {}) }),
+  cancel: (id: string) => request(`/api/work-orders/${id}/cancel`, { method: 'POST' }),
+}
+
+// Users API
+export const usersApi = {
+  list: (params?: Record<string, string>) => request('/api/users?' + new URLSearchParams(params || {}).toString()),
+  create: (data: Record<string, unknown>) => request('/api/users', { method: 'POST', body: JSON.stringify(data) }),
+  get: (id: string) => request(`/api/users/${id}`),
+  update: (id: string, data: Record<string, unknown>) => request(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request(`/api/users/${id}`, { method: 'DELETE' }),
+  resetPassword: (id: string, data: Record<string, unknown>) => request(`/api/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify(data) }),
+}
