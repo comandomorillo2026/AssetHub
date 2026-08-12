@@ -39,6 +39,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
+    // If 2FA is enabled, require token verification before issuing JWT
+    if (user.twoFactorEnabled) {
+      return NextResponse.json({
+        requiresTwoFactor: true,
+        userId: user.id,
+        tenantId: tenant.id,
+        message: 'Two-factor authentication required. Please provide your TOTP token.',
+      });
+    }
+
     await db.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } });
 
     // Create refresh token in DB

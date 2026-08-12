@@ -31,6 +31,7 @@ const VIEW_TITLES: Record<View, string> = {
   maintenance: 'Maintenance',
   'work-orders': 'Work Orders',
   checkouts: 'Checkouts',
+  reservations: 'Reservations',
   'ai-assistant': 'AI Assistant',
   migration: 'Data Migration',
   search: 'Search Results',
