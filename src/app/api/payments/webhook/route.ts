@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 const db = new PrismaClient()
 
-const WIPAY_WEBHOOK_SECRET = process.env.WIPAY_WEBHOOK_SECRET || 'dev-webhook-secret'
+const WIPAY_WEBHOOK_SECRET = process.env.WIPAY_WEBHOOK_SECRET;
+if (!WIPAY_WEBHOOK_SECRET) {
+  console.warn('WIPAY_WEBHOOK_SECRET not set — webhook signature verification is disabled. Set this in production.');
+}
 
 /*
   WiPay Webhook Handler
@@ -27,7 +30,7 @@ export async function POST(req: NextRequest) {
 
     const isDev = !process.env.WIPAY_MERCHANT_ID || process.env.NODE_ENV !== 'production'
     
-    if (!isDev) {
+    if (!isDev && WIPAY_WEBHOOK_SECRET) {
       // Verify WiPay signature in production
       const crypto = await import('crypto')
       const expected = crypto
@@ -39,6 +42,9 @@ export async function POST(req: NextRequest) {
         console.error('[WiPay] Invalid signature')
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
       }
+    } else if (!isDev && !WIPAY_WEBHOOK_SECRET) {
+      console.error('[WiPay] WIPAY_WEBHOOK_SECRET not set in production — rejecting webhook')
+      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
     }
 
     const orderId = data.order_id as string

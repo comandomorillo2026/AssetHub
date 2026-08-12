@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
 import { hashPassword } from '@/lib/jwt'
 
+// This route is now protected by middleware (requires super admin JWT via /api/admin/* path)
+// No hardcoded token check needed — the middleware handles authentication
+
 export async function POST(req: NextRequest) {
-  if (req.headers.get('x-super-admin-token') !== 'zeitgeist-super-admin-2024') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Only allow in non-production environments
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Quick-seed is disabled in production' }, { status: 403 })
   }
-  const db = new PrismaClient()
+
+  const { db } = await import('@/lib/db')
   try {
     const superHash = hashPassword('SuperAdmin2024!')
     await db.superAdmin.upsert({
       where: { email: 'admin@zeitgeist.co' },
       update: {},
-      create: { email: 'admin@zeitgeist.co', passwordHash: superHash, name: 'ZBS Super Admin' }
+      create: { email: 'admin@zeitgeist.co', passwordHash: superHash, name: 'ZBS Super Admin', isActive: true }
     })
     const planData = [
       { name: 'Starter', slug: 'starter', priceMonthly: 499, maxAssets: 500, maxUsers: 10, maxLocations: 5, features: '[]', sortOrder: 0 },
@@ -25,14 +29,14 @@ export async function POST(req: NextRequest) {
     const tenant = await db.tenant.upsert({
       where: { slug: 'pos-municipal-corp' },
       update: {},
-      create: { name: 'Port of Spain Municipal Corporation', slug: 'pos-municipal-corp', type: 'government', contactName: 'Anisa Mohammed', contactEmail: 'anisa@posmc.gov.tt', contactPhone: '+1-868-627-2246', address: 'City Hall, Knox Street, Port of Spain', country: 'Trinidad and Tobago', currency: 'TTD', isActive: true }
+      create: { name: 'Port of Spain Municipal Corporation', slug: 'pos-municipal-corp', type: 'government', contactName: 'Anisa Mohammed', contactEmail: 'anisa@posmc.gov.tt', contactPhone: '+1-868-627-2246', address: 'City Hall, Knox Street, Port of Spain', country: 'Trinidad and Tobago', currency: 'TTD', isActive: true, activatedAt: new Date() }
     })
     await db.tenantSettings.upsert({
       where: { tenantId: tenant.id },
       update: {},
       create: { tenantId: tenant.id }
     })
-    const userHash = hashPassword('demo123')
+    const userHash = hashPassword('Demo@2024!')
     await db.user.upsert({
       where: { email_tenantId: { email: 'admin@demo.com', tenantId: tenant.id } },
       update: {},
@@ -61,7 +65,5 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ error: msg }, { status: 500 })
-  } finally {
-    await db.$disconnect()
   }
 }

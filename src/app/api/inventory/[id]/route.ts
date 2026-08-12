@@ -7,9 +7,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const tenantId = request.headers.get('x-tenant-id');
+    const tenantId = request.headers.get('x-auth-tenant-id');
     if (!tenantId) {
-      return NextResponse.json({ error: 'x-tenant-id header is required' }, { status: 400 });
+      return NextResponse.json({ error: 'x-auth-tenant-id header is required' }, { status: 400 });
     }
 
     const session = await db.inventorySession.findFirst({
@@ -48,9 +48,9 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const tenantId = request.headers.get('x-tenant-id');
+    const tenantId = request.headers.get('x-auth-tenant-id');
     if (!tenantId) {
-      return NextResponse.json({ error: 'x-tenant-id header is required' }, { status: 400 });
+      return NextResponse.json({ error: 'x-auth-tenant-id header is required' }, { status: 400 });
     }
 
     const existing = await db.inventorySession.findFirst({
@@ -103,9 +103,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const tenantId = request.headers.get('x-tenant-id');
+    const tenantId = request.headers.get('x-auth-tenant-id');
     if (!tenantId) {
-      return NextResponse.json({ error: 'x-tenant-id header is required' }, { status: 400 });
+      return NextResponse.json({ error: 'x-auth-tenant-id header is required' }, { status: 400 });
     }
 
     const existing = await db.inventorySession.findFirst({

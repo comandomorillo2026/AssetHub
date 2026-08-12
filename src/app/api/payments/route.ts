@@ -16,10 +16,9 @@ const db = new PrismaClient()
 */
 
 // WiPay configuration — set these in .env for production
-const WIPAY_MERCHANT_ID = process.env.WIPAY_MERCHANT_ID || 'DEV_MERCHANT'
-const WIPAY_API_KEY = process.env.WIPAY_API_KEY || 'DEV_KEY'
+const WIPAY_MERCHANT_ID = process.env.WIPAY_MERCHANT_ID
+const WIPAY_API_KEY = process.env.WIPAY_API_KEY
 const WIPAY_BASE_URL = process.env.WIPAY_BASE_URL || 'https://checkout.wipay.tt'
-const WIPAY_WEBHOOK_SECRET = process.env.WIPAY_WEBHOOK_SECRET || 'dev-webhook-secret'
 
 interface WiPayOrderRequest {
   total: number        // Amount in TTD (e.g., 499.00)
@@ -139,7 +138,20 @@ async function handleInitiate(data: Record<string, unknown>) {
   const isDev = process.env.NODE_ENV !== 'production' || !process.env.WIPAY_MERCHANT_ID
 
   if (isDev) {
-    // Simulate WiPay checkout — return mock checkout URL
+    // Development mode: simulate successful payment directly
+    await db.payment.update({
+      where: { id: payment.id },
+      data: { status: 'completed', paidAt: new Date() },
+    })
+    const sub = await db.subscription.findUnique({ where: { tenantId: tenantId as string } })
+    if (sub) {
+      const periodEnd = new Date()
+      periodEnd.setMonth(periodEnd.getMonth() + (isYearly ? 12 : 1))
+      await db.subscription.update({
+        where: { id: sub.id },
+        data: { status: 'active', currentPeriodStart: new Date(), currentPeriodEnd: periodEnd, nextBillingDate: new Date(periodEnd) },
+      })
+    }
     return NextResponse.json({
       success: true,
       paymentId: payment.id,
@@ -147,9 +159,8 @@ async function handleInitiate(data: Record<string, unknown>) {
       amount,
       currency: 'TTD',
       plan: { id: plan.id, name: plan.name },
-      // In production, this would be the real WiPay checkout URL
-      checkoutUrl: `/api/payments/demo-checkout?order_id=${orderId}&amount=${amount}&plan=${plan.name}`,
       isDemo: true,
+      demoPaymentCompleted: true,
     })
   }
 

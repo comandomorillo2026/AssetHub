@@ -1,12 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+// Allowed fields for each entity — anything not listed here is stripped
+const ASSET_ALLOWED_FIELDS = [
+  'name', 'description', 'serialNumber', 'brand', 'model',
+  'tagNumber', 'qrCode', 'status', 'condition', 'assignedTo',
+  'purchaseDate', 'purchasePrice', 'currentValue', 'warrantyExpiry',
+  'categoryId', 'locationId', 'notes',
+];
+
+const INVENTORY_ITEM_ALLOWED_FIELDS = [
+  'inventorySessionId', 'assetId', 'expectedStatus', 'actualStatus', 'notes',
+];
+
+const AUDIT_LOG_ALLOWED_FIELDS = [
+  'action', 'details', 'userId', 'entityType', 'entityId',
+];
+
+function stripPayload(payload: Record<string, unknown>, allowedFields: string[]): Record<string, unknown> {
+  const clean: Record<string, unknown> = {};
+  for (const key of allowedFields) {
+    if (key in payload && payload[key] !== undefined) {
+      clean[key] = payload[key];
+    }
+  }
+  return clean;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const tenantId = request.headers.get('x-tenant-id');
+    const tenantId = request.headers.get('x-auth-tenant-id');
     if (!tenantId) {
-      return NextResponse.json({ error: 'x-tenant-id header is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Tenant ID is required' }, { status: 400 });
     }
+
+    const userId = request.headers.get('x-auth-user-id') || '';
 
     const body = await request.json();
     const { operations } = body;
@@ -28,48 +56,81 @@ export async function POST(request: NextRequest) {
       const op = operations[i];
       const { operation, entity, entityId, payload } = op;
 
+      // Validate operation type
+      if (!['create', 'update', 'delete'].includes(operation)) {
+        results.push({ index: i, success: false, error: `Invalid operation: ${operation}` });
+        continue;
+      }
+
       try {
         let result;
 
         switch (entity) {
           case 'asset': {
+            const cleanPayload = stripPayload(payload || {}, ASSET_ALLOWED_FIELDS);
             if (operation === 'create') {
               result = await db.asset.create({
-                data: { ...payload, tenantId },
+                data: { ...cleanPayload, tenantId },
               });
             } else if (operation === 'update' && entityId) {
-              const { id, tenantId: _, ...updatePayload } = payload;
+              // Verify asset belongs to this tenant before updating
+              const existing = await db.asset.findFirst({ where: { id: entityId, tenantId } });
+              if (!existing) {
+                results.push({ index: i, success: false, error: 'Asset not found or belongs to another tenant' });
+                continue;
+              }
               result = await db.asset.update({
-                where: { id: entityId, tenantId },
-                data: updatePayload,
+                where: { id: entityId },
+                data: cleanPayload,
               });
             } else if (operation === 'delete' && entityId) {
-              result = await db.asset.delete({
-                where: { id: entityId, tenantId },
-              });
+              const existing = await db.asset.findFirst({ where: { id: entityId, tenantId } });
+              if (!existing) {
+                results.push({ index: i, success: false, error: 'Asset not found or belongs to another tenant' });
+                continue;
+              }
+              result = await db.asset.delete({ where: { id: entityId } });
             }
             break;
           }
 
           case 'inventory_item': {
+            const cleanPayload = stripPayload(payload || {}, INVENTORY_ITEM_ALLOWED_FIELDS);
             if (operation === 'create') {
+              // Verify the inventory session belongs to this tenant
+              if (cleanPayload.inventorySessionId) {
+                const session = await db.inventorySession.findFirst({
+                  where: { id: cleanPayload.inventorySessionId as string, tenantId },
+                });
+                if (!session) {
+                  results.push({ index: i, success: false, error: 'Inventory session not found for this tenant' });
+                  continue;
+                }
+              }
               result = await db.inventoryItem.create({
-                data: { ...payload },
+                data: { ...cleanPayload },
               });
             } else if (operation === 'update' && entityId) {
-              const { id, ...updatePayload } = payload;
+              const cleanUpdate = stripPayload(payload || {}, INVENTORY_ITEM_ALLOWED_FIELDS);
+              // Verify through the inventory session
+              const existingItem = await db.inventoryItem.findUnique({ where: { id: entityId }, include: { inventorySession: { select: { tenantId: true } } } });
+              if (!existingItem || existingItem.inventorySession.tenantId !== tenantId) {
+                results.push({ index: i, success: false, error: 'Inventory item not found or belongs to another tenant' });
+                continue;
+              }
               result = await db.inventoryItem.update({
                 where: { id: entityId },
-                data: updatePayload,
+                data: cleanUpdate,
               });
             }
             break;
           }
 
           case 'audit_log': {
+            const cleanPayload = stripPayload(payload || {}, AUDIT_LOG_ALLOWED_FIELDS);
             if (operation === 'create') {
               result = await db.auditLog.create({
-                data: { ...payload, tenantId },
+                data: { ...cleanPayload, tenantId, userId },
               });
             }
             break;
@@ -90,7 +151,7 @@ export async function POST(request: NextRequest) {
     const succeeded = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success).length;
 
-    // Queue any failed operations for retry
+    // Queue failed operations for retry
     const failedOps = operations.filter((_: unknown, i: number) => !results[i]?.success);
     if (failedOps.length > 0) {
       await db.syncQueue.createMany({
@@ -118,9 +179,9 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const tenantId = request.headers.get('x-tenant-id');
+    const tenantId = request.headers.get('x-auth-tenant-id');
     if (!tenantId) {
-      return NextResponse.json({ error: 'x-tenant-id header is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Tenant ID is required' }, { status: 400 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -128,7 +189,6 @@ export async function GET(request: NextRequest) {
     const since = searchParams.get('since');
     const limit = parseInt(searchParams.get('limit') || '100', 10);
 
-    // Return pending sync queue items for this tenant
     const where: Record<string, unknown> = { tenantId, status: 'pending' };
     if (entity) where.entity = entity;
     if (since) {
@@ -141,12 +201,10 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'asc' },
     });
 
-    // Mark as synced
+    // Mark as synced only after successful retrieval
     if (pendingItems.length > 0) {
       await db.syncQueue.updateMany({
-        where: {
-          id: { in: pendingItems.map((item) => item.id) },
-        },
+        where: { id: { in: pendingItems.map((item) => item.id) } },
         data: { status: 'synced' },
       });
     }

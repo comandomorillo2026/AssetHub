@@ -3,9 +3,9 @@ import { db } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
-    const tenantId = request.headers.get('x-tenant-id');
+    const tenantId = request.headers.get('x-auth-tenant-id');
     if (!tenantId) {
-      return NextResponse.json({ error: 'x-tenant-id header is required' }, { status: 400 });
+      return NextResponse.json({ error: 'x-auth-tenant-id header is required' }, { status: 400 });
     }
 
     const body = await request.json();
