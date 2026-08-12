@@ -44,3 +44,23 @@ Stage Summary:
 - Real JWT auth replacing SHA256 hashes
 - 8 new functional modules delivered
 - Build passes, pushed to GitHub main branch
+
+---
+Task ID: 15-16
+Agent: Main Agent
+Task: Verify 5 bug fixes + 10 features, add warranty alerts widget, fix dark mode
+
+Work Log:
+- Verified all 5 bug fixes already in place from prior sessions
+- Verified all 10 priority features already implemented with real code
+- Added warranty alerts widget to dashboard (expiring + expired assets)
+- Fixed bg-slate-50 → bg-background for dark mode
+- Fixed notification dropdown to use semantic color tokens
+- Build: 0 errors, 71 API routes
+- Pushed: a848172
+
+Stage Summary:
+- 3 files changed, 104 insertions, 13 deletions
+- All 5 bug fixes + 10 features confirmed working
+- Warranty alerts now on dashboard, dark mode fixed
+- Build clean, pushed to GitHub
