@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
 
 export type UserRole = 'admin' | 'auditor' | 'user';
 
@@ -36,14 +37,12 @@ export function requirePermission(auth: AuthContext, permission: keyof typeof RO
 }
 
 export async function logAudit(params: {
-  db: any;
+  db: PrismaClient;
   tenantId: string;
   userId: string;
   action: string;
   details: string;
   assetId?: string;
-  entityType?: string;
-  entityId?: string;
 }) {
   try {
     await params.db.auditLog.create({
@@ -53,8 +52,6 @@ export async function logAudit(params: {
         action: params.action,
         details: params.details,
         assetId: params.assetId,
-        entityType: params.entityType,
-        entityId: params.entityId,
       },
     });
   } catch (error) {

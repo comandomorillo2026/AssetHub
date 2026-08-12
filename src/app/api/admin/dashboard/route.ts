@@ -70,7 +70,7 @@ export async function GET() {
       subscriberCount: p._count.subscriptions,
     }))
 
-    // Revenue chart data (last 6 months placeholder)
+    // Revenue chart data (last 6 months)
     const now = new Date()
     const revenueChart: { month: string; revenue: number }[] = []
     for (let i = 5; i >= 0; i--) {
