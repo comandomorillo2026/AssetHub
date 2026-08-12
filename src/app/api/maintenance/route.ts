@@ -1,23 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthContext, requirePermission } from '@/lib/auth-helpers';
+import { maintenanceCreateSchema, validateBody } from '@/lib/validations';
 
 const VALID_TYPES = ['preventive', 'corrective', 'emergency'] as const;
 type MaintenanceType = (typeof VALID_TYPES)[number];
 
 const VALID_STATUSES = ['scheduled', 'in_progress', 'completed', 'cancelled'] as const;
-
-type CreateMaintenanceBody = {
-  assetId: string;
-  type?: MaintenanceType;
-  title: string;
-  description?: string;
-  scheduledDate?: string;
-  cost?: number;
-  vendor?: string;
-  vendorContact?: string;
-  performedBy?: string;
-  notes?: string;
-};
 
 export async function GET(request: NextRequest) {
   try {
@@ -104,45 +93,32 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const tenantId = request.headers.get('x-auth-tenant-id');
-    const userId = request.headers.get('x-auth-user-id');
+    const auth = getAuthContext(request);
+    if (auth instanceof NextResponse) return auth;
 
-    if (!tenantId) {
-      return NextResponse.json(
-        { error: 'x-auth-tenant-id header is required' },
-        { status: 400 },
-      );
+    const permCheck = requirePermission(auth, 'canCreate');
+    if (permCheck) return permCheck;
+
+    const { tenantId, userId } = auth;
+
+    const body = await request.json();
+
+    const validation = validateBody(maintenanceCreateSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    const body: CreateMaintenanceBody = await request.json();
     const {
       assetId,
       type,
-      title,
       description,
       scheduledDate,
       cost,
       vendor,
-      vendorContact,
-      performedBy,
-      notes,
-    } = body;
+    } = validation.data;
 
-    if (!assetId || !title) {
-      return NextResponse.json(
-        { error: 'assetId and title are required' },
-        { status: 400 },
-      );
-    }
-
-    if (type && !VALID_TYPES.includes(type)) {
-      return NextResponse.json(
-        {
-          error: `Invalid type. Must be one of: ${VALID_TYPES.join(', ')}`,
-        },
-        { status: 400 },
-      );
-    }
+    // Pull extra fields from the raw body that aren't in the schema
+    const { title, vendorContact, performedBy, notes } = body;
 
     // Verify the asset belongs to the tenant
     const asset = await db.asset.findFirst({
@@ -160,12 +136,12 @@ export async function POST(request: NextRequest) {
       data: {
         tenantId,
         assetId,
-        type: type || 'preventive',
+        type,
         status: 'scheduled',
-        title,
+        title: title || description,
         description: description || null,
         scheduledDate: scheduledDate ? new Date(scheduledDate) : null,
-        cost: cost != null ? parseFloat(String(cost)) : null,
+        cost: cost ?? null,
         vendor: vendor || null,
         vendorContact: vendorContact || null,
         performedBy: performedBy || null,
@@ -190,7 +166,7 @@ export async function POST(request: NextRequest) {
         userId: userId || null,
         assetId,
         action: 'maintenance_created',
-        details: `Created maintenance record "${title}" (type: ${type || 'preventive'}) for asset "${asset.name}"`,
+        details: `Created maintenance record "${title || description}" (type: ${type}) for asset "${asset.name}"`,
         ipAddress: request.headers.get('x-forwarded-for') || null,
         userAgent: request.headers.get('user-agent') || null,
       },

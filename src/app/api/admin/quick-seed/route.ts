@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
   const { db } = await import('@/lib/db')
   try {
-    const superHash = hashPassword('SuperAdmin2024!')
+    const superHash = await hashPassword('SuperAdmin2024!')
     await db.superAdmin.upsert({
       where: { email: 'admin@zeitgeist.co' },
       update: {},
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       update: {},
       create: { tenantId: tenant.id }
     })
-    const userHash = hashPassword('Demo@2024!')
+    const userHash = await hashPassword('Demo@2024!')
     await db.user.upsert({
       where: { email_tenantId: { email: 'admin@demo.com', tenantId: tenant.id } },
       update: {},

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-const db = new PrismaClient()
+import { db } from '@/lib/db'
 
 const WIPAY_WEBHOOK_SECRET = process.env.WIPAY_WEBHOOK_SECRET;
 if (!WIPAY_WEBHOOK_SECRET) {

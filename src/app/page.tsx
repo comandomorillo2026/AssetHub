@@ -18,6 +18,7 @@ import MaintenanceView from '@/components/views/maintenance-view'
 import NotificationsView from '@/components/views/notifications-view'
 import AiAssistantView from '@/components/views/ai-assistant-view'
 import MigrationView from '@/components/views/migration-view'
+import ReportsView from '@/components/views/reports-view'
 
 function AppLayout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
@@ -37,7 +38,7 @@ function AppLayout() {
       case 'inventory-detail':
         return <InventoryView />
       case 'reports':
-        return <SettingsView />
+        return <ReportsView />
       case 'settings':
       case 'users':
         return <SettingsView />

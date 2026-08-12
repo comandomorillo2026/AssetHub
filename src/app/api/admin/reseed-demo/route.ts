@@ -86,7 +86,7 @@ export async function POST() {
     ])
 
     // 3. Demo Users (using bcrypt via hashPassword)
-    const demoPasswordHash = hashPassword('Demo@2024!')
+    const demoPasswordHash = await hashPassword('Demo@2024!')
     const adminUser = await db.user.create({
       data: {
         name: 'Anisa Mohammed', email: 'admin@demo.com',

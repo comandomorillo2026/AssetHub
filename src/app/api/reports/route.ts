@@ -22,6 +22,11 @@ export async function GET(request: NextRequest) {
 
     switch (type) {
       case 'dashboard': {
+        const tenant = await db.tenant.findUnique({
+          where: { id: tenantId },
+          select: { currency: true },
+        });
+
         const [totalAssets, assetsByStatus, categories, locations, recentLogs] =
           await Promise.all([
             db.asset.count({ where: { tenantId } }),
@@ -65,6 +70,7 @@ export async function GET(request: NextRequest) {
           totalAssets,
           activeAssets,
           totalValue: totalValue._sum.currentValue || 0,
+          currency: tenant?.currency || 'TTD',
           pendingInventories,
           byStatus: assetsByStatus.map((s) => ({
             status: s.status,
