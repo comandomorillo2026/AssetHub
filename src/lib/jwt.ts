@@ -67,12 +67,12 @@ export async function verifySuperAdminToken(token: string): Promise<SuperAdminJw
   return payload as unknown as SuperAdminJwtPayload;
 }
 
-export function hashPassword(password: string): string {
+export async function hashPassword(password: string): Promise<string> {
   const bcrypt = require('bcryptjs');
-  return bcrypt.hashSync(password, 12);
+  return bcrypt.hash(password, 12);
 }
 
-export function comparePassword(password: string, hash: string): boolean {
+export async function comparePassword(password: string, hash: string): Promise<boolean> {
   const bcrypt = require('bcryptjs');
-  return bcrypt.compareSync(password, hash);
+  return bcrypt.compare(password, hash);
 }

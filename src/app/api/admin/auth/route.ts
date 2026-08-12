@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       const newAdmin = await db.superAdmin.create({
         data: {
           email,
-          passwordHash: hashPassword(password),
+          passwordHash: await hashPassword(password),
           name: 'Super Administrator',
           isActive: true,
         },
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     const admin = await db.superAdmin.findUnique({ where: { email } })
 
-    if (!admin || !comparePassword(password, admin.passwordHash)) {
+    if (!admin || !(await comparePassword(password, admin.passwordHash))) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 

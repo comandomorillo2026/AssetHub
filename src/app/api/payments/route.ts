@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
 import crypto from 'crypto'
-const db = new PrismaClient()
+import { db } from '@/lib/db'
 
 /*
   WiPay Integration for AssetHub

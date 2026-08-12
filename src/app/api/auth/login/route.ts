@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { comparePassword, signAccessToken, signRefreshToken, type JwtPayload } from '@/lib/jwt';
+import { loginSchema, validateBody } from '@/lib/validations';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, tenantSlug } = body;
 
-    if (!email || !password || !tenantSlug) {
+    const validation = validateBody(loginSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+
+    const { email, password } = validation.data;
+    const { tenantSlug } = body;
+
+    if (!tenantSlug) {
       return NextResponse.json(
-        { error: 'Email, password, and tenantSlug are required' },
+        { error: 'tenantSlug is required' },
         { status: 400 }
       );
     }
@@ -27,7 +35,7 @@ export async function POST(request: NextRequest) {
       include: { tenant: { select: { id: true, name: true, slug: true, type: true, currency: true, subscription: { include: { plan: { select: { name: true, maxAssets: true, maxUsers: true } } } } } } },
     });
 
-    if (!user || !comparePassword(password, user.passwordHash)) {
+    if (!user || !(await comparePassword(password, user.passwordHash))) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 

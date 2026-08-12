@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthContext, requirePermission, logAudit } from '@/lib/auth-helpers';
+import { assetUpdateSchema, validateBody } from '@/lib/validations';
 
 export async function GET(
   request: NextRequest,
@@ -43,11 +45,14 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = getAuthContext(request);
+    if (auth instanceof NextResponse) return auth;
+
+    const permCheck = requirePermission(auth, 'canUpdate');
+    if (permCheck) return permCheck;
+
+    const { tenantId, userId } = auth;
     const { id } = await params;
-    const tenantId = request.headers.get('x-auth-tenant-id');
-    if (!tenantId) {
-      return NextResponse.json({ error: 'x-auth-tenant-id header is required' }, { status: 400 });
-    }
 
     const existing = await db.asset.findFirst({
       where: { id, tenantId },
@@ -58,30 +63,22 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const {
-      name, tagNumber, description, serialNumber, brand, model,
-      purchaseDate, purchasePrice, currentValue, warrantyExpiry,
-      status, condition, assignedTo, notes, photo, categoryId, locationId,
-    } = body;
 
-    const updateData: Record<string, unknown> = {};
-    if (name !== undefined) updateData.name = name;
-    if (tagNumber !== undefined) updateData.tagNumber = tagNumber;
-    if (description !== undefined) updateData.description = description;
-    if (serialNumber !== undefined) updateData.serialNumber = serialNumber;
-    if (brand !== undefined) updateData.brand = brand;
-    if (model !== undefined) updateData.model = model;
-    if (purchaseDate !== undefined) updateData.purchaseDate = purchaseDate ? new Date(purchaseDate) : null;
-    if (purchasePrice !== undefined) updateData.purchasePrice = purchasePrice !== null ? parseFloat(purchasePrice) : null;
-    if (currentValue !== undefined) updateData.currentValue = currentValue !== null ? parseFloat(currentValue) : null;
-    if (warrantyExpiry !== undefined) updateData.warrantyExpiry = warrantyExpiry ? new Date(warrantyExpiry) : null;
-    if (status !== undefined) updateData.status = status;
-    if (condition !== undefined) updateData.condition = condition;
-    if (assignedTo !== undefined) updateData.assignedTo = assignedTo;
-    if (notes !== undefined) updateData.notes = notes;
-    if (photo !== undefined) updateData.photo = photo;
-    if (categoryId !== undefined) updateData.categoryId = categoryId;
-    if (locationId !== undefined) updateData.locationId = locationId;
+    const validation = validateBody(assetUpdateSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+
+    const updateData: Record<string, unknown> = {
+      ...validation.data,
+    };
+
+    // Convert date strings to Date objects
+    if (updateData.purchaseDate !== undefined) updateData.purchaseDate = updateData.purchaseDate ? new Date(updateData.purchaseDate) : null;
+    if (updateData.warrantyExpiry !== undefined) updateData.warrantyExpiry = updateData.warrantyExpiry ? new Date(updateData.warrantyExpiry) : null;
+
+    // Pull optional fields not in the schema from raw body
+    if (body.photo !== undefined) updateData.photo = body.photo;
 
     const asset = await db.asset.update({
       where: { id },
@@ -90,6 +87,18 @@ export async function PUT(
         category: { select: { id: true, name: true, code: true, color: true, icon: true } },
         location: { select: { id: true, name: true, code: true } },
       },
+    });
+
+    const changedFields = Object.keys(updateData).join(', ');
+    await logAudit({
+      db,
+      tenantId,
+      userId,
+      action: 'asset_updated',
+      details: `Updated asset "${existing.name}" (${existing.tagNumber}) — changed: ${changedFields}`,
+      assetId: id,
+      entityType: 'asset',
+      entityId: id,
     });
 
     return NextResponse.json({ data: asset });
@@ -112,11 +121,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = getAuthContext(request);
+    if (auth instanceof NextResponse) return auth;
+
+    const permCheck = requirePermission(auth, 'canDelete');
+    if (permCheck) return permCheck;
+
+    const { tenantId, userId } = auth;
     const { id } = await params;
-    const tenantId = request.headers.get('x-auth-tenant-id');
-    if (!tenantId) {
-      return NextResponse.json({ error: 'x-auth-tenant-id header is required' }, { status: 400 });
-    }
 
     const existing = await db.asset.findFirst({
       where: { id, tenantId },
@@ -127,6 +139,17 @@ export async function DELETE(
     }
 
     await db.asset.delete({ where: { id } });
+
+    await logAudit({
+      db,
+      tenantId,
+      userId,
+      action: 'asset_deleted',
+      details: `Deleted asset "${existing.name}" (${existing.tagNumber})`,
+      assetId: id,
+      entityType: 'asset',
+      entityId: id,
+    });
 
     return NextResponse.json({ message: 'Asset deleted successfully' });
   } catch (error) {

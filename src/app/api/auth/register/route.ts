@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { hashPassword, signAccessToken, signRefreshToken, type JwtPayload } from '@/lib/jwt'
+import { registerSchema, validateBody } from '@/lib/validations'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { tenantName, tenantSlug, tenantType, name, email, password, contactPhone, address, planId, billingCycle } = body
 
-    if (!tenantName || !name || !email || !password) {
-      return NextResponse.json(
-        { error: 'tenantName, name, email, and password are required' },
-        { status: 400 }
-      )
+    const validation = validateBody(registerSchema, body)
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
     }
+
+    const {
+      tenantName, tenantType, contactName, contactEmail,
+      contactPhone, country, name, email, password, planSlug,
+    } = validation.data
+
+    // Pull extra fields from the raw body that aren't in the schema
+    const { tenantSlug, address, planId, billingCycle } = body
 
     const slug =
       tenantSlug ||
@@ -33,10 +39,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email already registered' }, { status: 409 })
     }
 
-    const passwordHash = hashPassword(password)
+    const passwordHash = await hashPassword(password)
 
     // Find or create default plan
     let targetPlanId = planId
+    if (!targetPlanId && planSlug) {
+      const planBySlug = await db.plan.findFirst({ where: { slug: planSlug } })
+      if (planBySlug) targetPlanId = planBySlug.id
+    }
     if (!targetPlanId) {
       const defaultPlan = await db.plan.findFirst({ where: { slug: 'professional' } })
       if (defaultPlan) targetPlanId = defaultPlan.id
@@ -60,6 +70,7 @@ export async function POST(request: NextRequest) {
         address: address || null,
         contactName: name,
         contactEmail: email.toLowerCase(),
+        country: country || null,
         isActive: true,
         activatedAt: new Date(),
         subscription: targetPlanId

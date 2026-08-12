@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-const db = new PrismaClient()
+import { db } from '@/lib/db'
 
 // GET /api/admin/dashboard - Super admin dashboard stats
 export async function GET() {

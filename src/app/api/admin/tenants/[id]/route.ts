@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-const db = new PrismaClient()
+import { db } from '@/lib/db'
 
 // GET /api/admin/tenants/[id] - Single tenant with full details
 export async function GET(

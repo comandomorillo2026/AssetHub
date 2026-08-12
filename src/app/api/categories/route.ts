@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthContext, requirePermission } from '@/lib/auth-helpers';
+import { categorySchema, validateBody } from '@/lib/validations';
 
 export async function GET(request: NextRequest) {
   try {
@@ -36,17 +38,22 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const tenantId = request.headers.get('x-auth-tenant-id');
-    if (!tenantId) {
-      return NextResponse.json({ error: 'x-auth-tenant-id header is required' }, { status: 400 });
-    }
+    const auth = getAuthContext(request);
+    if (auth instanceof NextResponse) return auth;
+
+    const permCheck = requirePermission(auth, 'canCreate');
+    if (permCheck) return permCheck;
+
+    const { tenantId } = auth;
 
     const body = await request.json();
-    const { name, code, color, icon } = body;
 
-    if (!name || !code) {
-      return NextResponse.json({ error: 'name and code are required' }, { status: 400 });
+    const validation = validateBody(categorySchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
+
+    const { name, code, color, icon } = validation.data;
 
     const category = await db.category.create({
       data: {

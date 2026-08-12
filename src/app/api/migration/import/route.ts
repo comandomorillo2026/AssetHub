@@ -461,7 +461,7 @@ async function importUser(data: Record<string, string>, tenantId: string): Promi
   }
 
   // Use bcrypt hash for password (default: changeme)
-  const passwordHash = hashPassword('changeme');
+  const passwordHash = await hashPassword('changeme');
 
   await db.user.create({
     data: {

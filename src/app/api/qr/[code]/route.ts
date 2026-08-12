@@ -12,12 +12,41 @@ export async function GET(
       return NextResponse.json({ error: 'QR code is required' }, { status: 400 });
     }
 
+    const url = new URL(request.url);
+    const tenantParam = url.searchParams.get('tenant');
+
+    // Build the where clause
+    const where: { qrCode: string; tenantId?: string } = { qrCode: code };
+
+    // If tenant param provided, look up tenant by slug or id and filter
+    if (tenantParam) {
+      const tenant = await db.tenant.findFirst({
+        where: {
+          OR: [
+            { slug: tenantParam },
+            { id: tenantParam },
+          ],
+        },
+        select: { id: true },
+      });
+
+      if (!tenant) {
+        return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+      }
+
+      where.tenantId = tenant.id;
+    }
+
     const asset = await db.asset.findFirst({
-      where: { qrCode: code },
-      include: {
-        category: { select: { id: true, name: true, code: true, color: true } },
-        location: { select: { id: true, name: true, code: true, address: true } },
-        tenant: { select: { id: true, name: true, slug: true } },
+      where,
+      select: {
+        id: true,
+        name: true,
+        tagNumber: true,
+        status: true,
+        condition: true,
+        category: { select: { name: true } },
+        location: { select: { name: true } },
       },
     });
 
@@ -25,23 +54,16 @@ export async function GET(
       return NextResponse.json({ error: 'Asset not found for this QR code' }, { status: 404 });
     }
 
-    // Return limited info for scanning purposes (no sensitive financial data)
+    // Return only limited public-safe fields (no financial data, no tenant details)
     return NextResponse.json({
       data: {
         id: asset.id,
-        qrCode: asset.qrCode,
-        tagNumber: asset.tagNumber,
         name: asset.name,
-        description: asset.description,
-        serialNumber: asset.serialNumber,
-        brand: asset.brand,
-        model: asset.model,
+        tagNumber: asset.tagNumber,
         status: asset.status,
         condition: asset.condition,
-        assignedTo: asset.assignedTo,
         category: asset.category,
         location: asset.location,
-        tenant: asset.tenant,
       },
     });
   } catch (error) {

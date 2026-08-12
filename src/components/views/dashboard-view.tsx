@@ -40,17 +40,29 @@ import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 import { useAppStore, type DashboardStats } from '@/lib/store'
-import { reportsApi } from '@/lib/api'
+import { reportsApi, settingsApi } from '@/lib/api'
 
 /* ──────────────────────────────────────────────
    Helpers
    ────────────────────────────────────────────── */
 
-function formatCurrency(value: number): string {
-  return `TTD $${value.toLocaleString('en-US', {
+const CURRENCY_LOCALE_MAP: Record<string, string> = {
+  TTD: 'en-TT',
+  USD: 'en-US',
+  JMD: 'en-JM',
+  BBD: 'en-BB',
+  ECS: 'en-EC',
+}
+
+function formatCurrency(value: number, currency?: string): string {
+  const cur = currency || 'TTD'
+  const locale = CURRENCY_LOCALE_MAP[cur] || 'en-TT'
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: cur,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })}`
+  }).format(value)
 }
 
 function relativeTime(dateStr: string): string {
@@ -187,7 +199,7 @@ interface StatCardConfig {
   iconColor: string
   gradientFrom: string
   gradientTo: string
-  getValue: (s: DashboardStats) => string
+  getValue: (s: DashboardStats, currency?: string) => string
   getSub: (s: DashboardStats) => string
 }
 
@@ -199,7 +211,7 @@ const STAT_CARDS: StatCardConfig[] = [
     iconColor: 'text-teal-700',
     gradientFrom: 'from-teal-500/10',
     gradientTo: 'to-emerald-500/5',
-    getValue: (s) => s.totalAssets.toLocaleString(),
+    getValue: (s, _c) => s.totalAssets.toLocaleString(),
     getSub: () => 'All registered assets',
   },
   {
@@ -209,7 +221,7 @@ const STAT_CARDS: StatCardConfig[] = [
     iconColor: 'text-emerald-600',
     gradientFrom: 'from-emerald-500/10',
     gradientTo: 'to-green-500/5',
-    getValue: (s) => s.activeAssets.toLocaleString(),
+    getValue: (s, _c) => s.activeAssets.toLocaleString(),
     getSub: (s) =>
       s.totalAssets > 0
         ? `${((s.activeAssets / s.totalAssets) * 100).toFixed(1)}% of total`
@@ -222,7 +234,7 @@ const STAT_CARDS: StatCardConfig[] = [
     iconColor: 'text-amber-600',
     gradientFrom: 'from-amber-500/10',
     gradientTo: 'to-yellow-500/5',
-    getValue: (s) => formatCurrency(s.totalValue),
+    getValue: (s, currency) => formatCurrency(s.totalValue, currency),
     getSub: () => 'Combined asset value',
   },
   {
@@ -232,7 +244,7 @@ const STAT_CARDS: StatCardConfig[] = [
     iconColor: 'text-rose-600',
     gradientFrom: 'from-rose-500/10',
     gradientTo: 'to-orange-500/5',
-    getValue: (s) => s.pendingInventories.toLocaleString(),
+    getValue: (s, _c) => s.pendingInventories.toLocaleString(),
     getSub: () => 'Awaiting completion',
   },
 ]
@@ -296,13 +308,30 @@ function ListSkeleton() {
 export default function DashboardView() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [currency, setCurrency] = useState<string>('TTD')
   const refreshKey = useAppStore((s) => s.refreshKey)
+  const userTenantCurrency = useAppStore((s) => s.user?.tenant?.currency)
+
+  useEffect(() => {
+    if (userTenantCurrency) {
+      setCurrency(userTenantCurrency)
+      return
+    }
+    settingsApi.get()
+      .then((res: any) => {
+        if (res?.data?.currency) setCurrency(res.data.currency)
+      })
+      .catch(() => {})
+  }, [userTenantCurrency])
 
   const fetchDashboard = useCallback(async () => {
     try {
       setLoading(true)
       const data = await reportsApi.dashboard()
       setStats(data)
+      if ((data as any)?.currency) {
+        setCurrency((data as any).currency)
+      }
     } catch {
       setStats(null)
     } finally {
@@ -372,7 +401,7 @@ export default function DashboardView() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-2xl font-bold tracking-tight">
-                          {cfg.getValue(stats)}
+                          {cfg.getValue(stats, currency)}
                         </p>
                         <p className="mt-0.5 truncate text-sm text-muted-foreground">
                           {cfg.getSub(stats)}

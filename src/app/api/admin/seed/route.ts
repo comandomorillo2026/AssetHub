@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-const db = new PrismaClient()
+import { db } from '@/lib/db'
 import { hashPassword } from '@/lib/jwt'
 
 export async function POST() {
@@ -13,7 +12,7 @@ export async function POST() {
       const admin = await db.superAdmin.create({
         data: {
           email: 'admin@zeitgeist.co',
-          passwordHash: hashPassword('super2024'),
+          passwordHash: await hashPassword('super2024'),
           name: 'Super Administrator',
           isActive: true,
         },
