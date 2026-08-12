@@ -17,6 +17,7 @@ import SettingsView from '@/components/views/settings-view'
 import MaintenanceView from '@/components/views/maintenance-view'
 import WorkOrdersView from '@/components/views/work-orders-view'
 import CheckoutsView from '@/components/views/checkouts-view'
+import ReservationsView from '@/components/views/reservations-view'
 import NotificationsView from '@/components/views/notifications-view'
 import AiAssistantView from '@/components/views/ai-assistant-view'
 import MigrationView from '@/components/views/migration-view'
@@ -57,6 +58,8 @@ function AppLayout() {
         return <WorkOrdersView />
       case 'checkouts':
         return <CheckoutsView />
+      case 'reservations':
+        return <ReservationsView />
       case 'ai-assistant':
         return <AiAssistantView />
       case 'migration':

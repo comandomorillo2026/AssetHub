@@ -84,8 +84,22 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify({ email, password, tenantSlug }),
     }),
+  login2FA: (userId: string, tenantId: string, token: string) =>
+    request('/api/auth/2fa/login', {
+      method: 'POST',
+      body: JSON.stringify({ userId, tenantId, token }),
+    }),
   register: (data: Record<string, unknown>) =>
     request('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+}
+
+// 2FA
+export const twoFactorApi = {
+  setup: () => request('/api/auth/2fa/setup', { method: 'POST' }),
+  verify: (token: string) =>
+    request('/api/auth/2fa/verify', { method: 'POST', body: JSON.stringify({ token }) }),
+  disable: (token: string) =>
+    request('/api/auth/2fa/disable', { method: 'POST', body: JSON.stringify({ token }) }),
 }
 
 // Assets

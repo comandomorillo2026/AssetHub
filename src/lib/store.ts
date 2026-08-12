@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type View = 'login' | 'register' | 'register-wizard' | 'dashboard' | 'assets' | 'asset-detail' | 'add-asset' | 'edit-asset' | 'scan' | 'inventory' | 'inventory-detail' | 'reports' | 'settings' | 'users' | 'super-admin' | 'admin-tenant-detail' | 'portal' | 'notifications' | 'maintenance' | 'work-orders' | 'checkouts' | 'ai-assistant' | 'migration' | 'search'
+export type View = 'login' | 'register' | 'register-wizard' | 'dashboard' | 'assets' | 'asset-detail' | 'add-asset' | 'edit-asset' | 'scan' | 'inventory' | 'inventory-detail' | 'reports' | 'settings' | 'users' | 'super-admin' | 'admin-tenant-detail' | 'portal' | 'notifications' | 'maintenance' | 'work-orders' | 'checkouts' | 'reservations' | 'ai-assistant' | 'migration' | 'search'
 
 export interface SuperAdmin {
   id: string
@@ -87,6 +87,7 @@ export interface User {
   name: string
   role: string
   tenantId: string
+  twoFactorEnabled?: boolean
   tenant?: {
     id: string
     name: string

@@ -9,11 +9,11 @@ import {
 import {
   FileBarChart, Settings, Users, Download, ChevronRight, ChevronDown,
   Shield, Eye, UserCircle, AlertTriangle, Trash2, Save, Crown, Plus,
-  MoreHorizontal, Pencil, UserX, Filter, Calendar,
+  MoreHorizontal, Pencil, UserX, Filter, Calendar, Smartphone, Loader2, CheckCircle2, XCircle, Copy, KeyRound,
 } from 'lucide-react'
 
 import { useAppStore, type DashboardStats } from '@/lib/store'
-import { reportsApi } from '@/lib/api'
+import { reportsApi, twoFactorApi, usersApi } from '@/lib/api'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -867,6 +867,200 @@ function ReportsView() {
   )
 }
 
+// ─── Two-Factor Authentication Section ───────────────────────────────
+function TwoFactorSection() {
+  const user = useAppStore((s) => s.user)
+  const [isEnabled, setIsEnabled] = useState(!!user?.twoFactorEnabled)
+  const [step, setStep] = useState<'idle' | 'qr' | 'verify' | 'done'>('idle')
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('')
+  const [verifyToken, setVerifyToken] = useState('')
+  const [disableToken, setDisableToken] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [backupCodes, setBackupCodes] = useState<string[]>([])
+
+  async function handleSetup() {
+    try {
+      setLoading(true)
+      const data = await twoFactorApi.setup()
+      setQrCodeDataUrl(data.qrCodeDataUrl)
+      setStep('qr')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to generate 2FA secret')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleVerify() {
+    if (verifyToken.length !== 6) {
+      toast.error('Enter the 6-digit code from your authenticator app')
+      return
+    }
+    try {
+      setLoading(true)
+      const data = await twoFactorApi.verify(verifyToken)
+      setIsEnabled(true)
+      setBackupCodes(data.backupCodes || [])
+      setStep('done')
+      toast.success('Two-factor authentication enabled!')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Invalid code')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleDisable() {
+    if (disableToken.length !== 6) {
+      toast.error('Enter your current 6-digit code to disable 2FA')
+      return
+    }
+    try {
+      setLoading(true)
+      await twoFactorApi.disable(disableToken)
+      setIsEnabled(false)
+      setDisableToken('')
+      toast.success('Two-factor authentication disabled')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Invalid code')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function copyCodes() {
+    navigator.clipboard.writeText(backupCodes.join('\n'))
+    toast.success('Backup codes copied to clipboard')
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <KeyRound className="h-4 w-4" />
+          Two-Factor Authentication (2FA)
+        </CardTitle>
+        <CardDescription>
+          Add an extra layer of security to your account using TOTP (Google Authenticator, Authy, etc.).
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {/* Current Status */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className={`h-3 w-3 rounded-full ${isEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
+          <span className="text-sm font-medium">{isEnabled ? '2FA is enabled' : '2FA is disabled'}</span>
+        </div>
+
+        {/* Idle: Show enable button */}
+        {step === 'idle' && !isEnabled && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Protect your account with two-factor authentication. You will need an authenticator app on your phone.
+            </p>
+            <Button onClick={handleSetup} disabled={loading} className="bg-[#0f766e] hover:bg-[#0d6560] text-white shrink-0">
+              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Smartphone className="w-4 h-4 mr-2" />}
+              Set Up 2FA
+            </Button>
+          </div>
+        )}
+
+        {/* QR Code Step */}
+        {step === 'qr' && (
+          <div className="space-y-4">
+            <div className="flex flex-col items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+              {qrCodeDataUrl && (
+                <img src={qrCodeDataUrl} alt="2FA QR Code" className="w-56 h-56 rounded" />
+              )}
+              <div className="text-center space-y-1">
+                <p className="text-sm font-medium">Scan with your authenticator app</p>
+                <p className="text-xs text-muted-foreground">
+                  Google Authenticator, Authy, 1Password, or any TOTP-compatible app
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Verification Code</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={verifyToken}
+                  onChange={(e) => setVerifyToken(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="flex-1 text-center text-lg tracking-[0.3em] font-mono"
+                  autoFocus
+                />
+                <Button onClick={handleVerify} disabled={loading || verifyToken.length !== 6} className="bg-[#0f766e] hover:bg-[#0d6560] text-white">
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  Verify
+                </Button>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setStep('idle')} className="text-slate-500">
+              Cancel setup
+            </Button>
+          </div>
+        )}
+
+        {/* Done: Show backup codes */}
+        {step === 'done' && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Save your backup codes</p>
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                  Store these codes in a secure location. Each code can only be used once to recover access to your account.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {backupCodes.map((code, i) => (
+                <div key={i} className="px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded font-mono text-sm text-center select-all">
+                  {code}
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={copyCodes}>
+                <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy All
+              </Button>
+              <Button size="sm" onClick={() => setStep('idle')}>
+                Done
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Disable 2FA */}
+        {isEnabled && step === 'idle' && (
+          <div className="space-y-3 pt-2 border-t mt-4">
+            <p className="text-sm text-muted-foreground">
+              To disable two-factor authentication, enter a valid code from your authenticator app.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="Current TOTP code"
+                value={disableToken}
+                onChange={(e) => setDisableToken(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="flex-1 text-center tracking-[0.3em] font-mono"
+              />
+              <Button variant="destructive" onClick={handleDisable} disabled={loading || disableToken.length !== 6}>
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4 mr-2" />}
+                Disable 2FA
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 // ─── Settings View ──────────────────────────────────────────────────────────
 function SettingsView() {
   const user = useAppStore((s) => s.user)
@@ -1015,6 +1209,11 @@ function SettingsView() {
             </div>
           </CardContent>
         </Card>
+      </motion.div>
+
+      {/* Two-Factor Authentication */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.38 }}>
+        <TwoFactorSection />
       </motion.div>
 
       {/* Danger Zone */}
