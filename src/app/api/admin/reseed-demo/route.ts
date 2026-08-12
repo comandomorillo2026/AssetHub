@@ -20,7 +20,7 @@ export async function POST() {
       await db.invoice.deleteMany({ where: { tenantId: demoTenant.id } })
       await db.payment.deleteMany({ where: { tenantId: demoTenant.id } })
       await db.subscription.deleteMany({ where: { tenantId: demoTenant.id } })
-      await db.inventoryItem.deleteMany({ where: { inventorySession: { tenantId: demoTenant.id } } })
+      await db.inventoryItem.deleteMany({ where: { session: { tenantId: demoTenant.id } } })
       await db.inventorySession.deleteMany({ where: { tenantId: demoTenant.id } })
       await db.syncQueue.deleteMany({ where: { tenantId: demoTenant.id } })
       await db.auditLog.deleteMany({ where: { tenantId: demoTenant.id } })

@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
           isActive: true,
         },
       })
-      const token = signSuperAdminToken({ adminId: newAdmin.id, email: newAdmin.email })
+      const token = await signSuperAdminToken({ adminId: newAdmin.id, email: newAdmin.email })
       return NextResponse.json({
         user: { id: newAdmin.id, email: newAdmin.email, name: newAdmin.name, isActive: newAdmin.isActive },
         accessToken: token,
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       data: { lastLogin: new Date() },
     })
 
-    const token = signSuperAdminToken({ adminId: admin.id, email: admin.email })
+    const token = await signSuperAdminToken({ adminId: admin.id, email: admin.email })
 
     return NextResponse.json({
       user: { id: admin.id, email: admin.email, name: admin.name, isActive: admin.isActive },

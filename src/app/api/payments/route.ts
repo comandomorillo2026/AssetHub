@@ -19,6 +19,11 @@ const WIPAY_MERCHANT_ID = process.env.WIPAY_MERCHANT_ID
 const WIPAY_API_KEY = process.env.WIPAY_API_KEY
 const WIPAY_BASE_URL = process.env.WIPAY_BASE_URL || 'https://checkout.wipay.tt'
 
+function assertWipayApiKey(): string {
+  if (!WIPAY_API_KEY) throw new Error('WIPAY_API_KEY is required')
+  return WIPAY_API_KEY
+}
+
 interface WiPayOrderRequest {
   total: number        // Amount in TTD (e.g., 499.00)
   name: string         // Customer name
@@ -37,14 +42,14 @@ function generateWipayHash(data: Record<string, string>): string {
     .map((key) => `${key}=${data[key]}`)
     .join('&')
   return crypto
-    .createHmac('sha256', WIPAY_API_KEY)
+    .createHmac('sha256', assertWipayApiKey())
     .update(queryString)
     .digest('hex')
 }
 
 function verifyWipaySignature(payload: string, signature: string): boolean {
   const expected = crypto
-    .createHmac('sha256', WIPAY_WEBHOOK_SECRET)
+    .createHmac('sha256', assertWipayApiKey())
     .update(payload)
     .digest('hex')
   return crypto.timingSafeEqual(
@@ -122,7 +127,7 @@ async function handleInitiate(data: Record<string, unknown>) {
 
   // Build WiPay order request
   const wipayData: Record<string, string> = {
-    merchant_id: WIPAY_MERCHANT_ID,
+    merchant_id: WIPAY_MERCHANT_ID ?? '',
     total: amount.toFixed(2),
     name: (contactName as string) || (tenantName as string) || 'AssetHub Customer',
     email: (contactEmail as string) || '',
@@ -176,7 +181,8 @@ async function handleInitiate(data: Record<string, unknown>) {
 
   const wipayResult = await wipayResponse.json()
 
-  if (!wipayResult.url) {
+  const checkoutUrl = wipayResult.url as string | undefined
+  if (!checkoutUrl) {
     return NextResponse.json({ error: 'Failed to create WiPay order' }, { status: 500 })
   }
 
@@ -193,7 +199,7 @@ async function handleInitiate(data: Record<string, unknown>) {
     amount,
     currency: 'TTD',
     plan: { id: plan.id, name: plan.name },
-    checkoutUrl: wipayResult.url,
+    checkoutUrl,
     isDemo: false,
   })
 }

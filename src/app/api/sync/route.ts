@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
             const cleanPayload = stripPayload(payload || {}, ASSET_ALLOWED_FIELDS);
             if (operation === 'create') {
               result = await db.asset.create({
-                data: { ...cleanPayload, tenantId },
+                data: { ...cleanPayload, tenantId } as any,
               });
             } else if (operation === 'update' && entityId) {
               // Verify asset belongs to this tenant before updating
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
               }
               result = await db.asset.update({
                 where: { id: entityId },
-                data: cleanPayload,
+                data: cleanPayload as any,
               });
             } else if (operation === 'delete' && entityId) {
               const existing = await db.asset.findFirst({ where: { id: entityId, tenantId } });
@@ -108,19 +108,19 @@ export async function POST(request: NextRequest) {
                 }
               }
               result = await db.inventoryItem.create({
-                data: { ...cleanPayload },
+                data: { ...cleanPayload, sessionId: cleanPayload.inventorySessionId } as any,
               });
             } else if (operation === 'update' && entityId) {
               const cleanUpdate = stripPayload(payload || {}, INVENTORY_ITEM_ALLOWED_FIELDS);
               // Verify through the inventory session
-              const existingItem = await db.inventoryItem.findUnique({ where: { id: entityId }, include: { inventorySession: { select: { tenantId: true } } } });
-              if (!existingItem || existingItem.inventorySession.tenantId !== tenantId) {
+              const existingItem = await db.inventoryItem.findUnique({ where: { id: entityId }, include: { session: { select: { tenantId: true } } } });
+              if (!existingItem || existingItem.session.tenantId !== tenantId) {
                 results.push({ index: i, success: false, error: 'Inventory item not found or belongs to another tenant' });
                 continue;
               }
               result = await db.inventoryItem.update({
                 where: { id: entityId },
-                data: cleanUpdate,
+                data: cleanUpdate as any,
               });
             }
             break;
@@ -130,7 +130,12 @@ export async function POST(request: NextRequest) {
             const cleanPayload = stripPayload(payload || {}, AUDIT_LOG_ALLOWED_FIELDS);
             if (operation === 'create') {
               result = await db.auditLog.create({
-                data: { ...cleanPayload, tenantId, userId },
+                data: {
+                  ...cleanPayload,
+                  tenantId,
+                  userId,
+                  action: (cleanPayload.action as string) || 'sync_create',
+                } as any,
               });
             }
             break;

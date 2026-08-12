@@ -116,8 +116,8 @@ const assetFormSchema = z.object({
   brand: z.string().optional().default(''),
   model: z.string().optional().default(''),
   purchaseDate: z.string().optional().default(''),
-  purchasePrice: z.coerce.number().optional().default(undefined),
-  currentValue: z.coerce.number().optional().default(undefined),
+  purchasePrice: z.coerce.number().optional(),
+  currentValue: z.coerce.number().optional(),
   warrantyExpiry: z.string().optional().default(''),
   status: z.string().optional().default('active'),
   condition: z.string().optional().default('new'),
@@ -777,7 +777,8 @@ function AssetFormView({ mode }: { mode: 'add' | 'edit' }) {
     watch,
     formState: { errors },
   } = useForm<AssetFormData>({
-    resolver: zodResolver(assetFormSchema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(assetFormSchema) as any,
     defaultValues: {
       tagNumber: '',
       name: '',
@@ -899,7 +900,8 @@ function AssetFormView({ mode }: { mode: 'add' | 'edit' }) {
         </h1>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      <form onSubmit={handleSubmit(onSubmit as any)}>
         <Card>
           <CardContent className="p-6">
             <div className="grid gap-6 md:grid-cols-2">

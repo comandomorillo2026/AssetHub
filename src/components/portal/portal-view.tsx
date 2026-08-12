@@ -36,7 +36,8 @@ import { useAppStore } from '@/lib/store'
 /* ------------------------------------------------------------------ */
 /*  ANIMATION HELPERS                                                  */
 /* ------------------------------------------------------------------ */
-const fadeUp = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const fadeUp: any = {
   hidden: { opacity: 0, y: 30 },
   visible: (i: number = 0) => ({
     opacity: 1,
@@ -45,7 +46,8 @@ const fadeUp = {
   }),
 }
 
-const fadeIn = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const fadeIn: any = {
   hidden: { opacity: 0 },
   visible: (i: number = 0) => ({
     opacity: 1,
@@ -53,7 +55,8 @@ const fadeIn = {
   }),
 }
 
-const scaleIn = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const scaleIn: any = {
   hidden: { opacity: 0, scale: 0.92 },
   visible: (i: number = 0) => ({
     opacity: 1,

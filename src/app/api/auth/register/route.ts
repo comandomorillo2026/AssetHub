@@ -61,45 +61,51 @@ export async function POST(request: NextRequest) {
       periodEnd.setMonth(periodEnd.getMonth() + 1)
     }
 
-    const tenant = await db.tenant.create({
-      data: {
-        name: tenantName,
-        slug,
-        type: tenantType || 'private',
-        contactPhone: contactPhone || null,
-        address: address || null,
-        contactName: name,
-        contactEmail: email.toLowerCase(),
-        country: country || null,
-        isActive: true,
-        activatedAt: new Date(),
-        subscription: targetPlanId
-          ? {
-              create: {
-                planId: targetPlanId,
-                status: 'trial', // Starts as trial until payment
-                currentPeriodStart: now,
-                currentPeriodEnd: periodEnd,
-                billingCycle: billingCycle || 'monthly',
-                nextBillingDate: periodEnd,
-              },
-            }
-          : undefined,
-        users: {
-          create: {
-            name,
-            email: email.toLowerCase(),
-            passwordHash,
-            role: 'admin',
-          },
+    // Build tenant data without conditional subscription to preserve Prisma type inference
+    const tenantCreateData: Parameters<typeof db.tenant.create>[0]['data'] = {
+      name: tenantName,
+      slug,
+      type: tenantType || 'private',
+      contactPhone: contactPhone || undefined,
+      address: address || undefined,
+      contactName: name,
+      contactEmail: email.toLowerCase(),
+      country: country || undefined,
+      isActive: true,
+      activatedAt: new Date(),
+      users: {
+        create: {
+          name,
+          email: email.toLowerCase(),
+          passwordHash,
+          role: 'admin',
         },
-        settings: { create: {} },
       },
+      settings: { create: {} },
+    }
+
+    // Add subscription only if we have a plan
+    if (targetPlanId) {
+      (tenantCreateData as Record<string, unknown>).subscription = {
+        create: {
+          planId: targetPlanId,
+          status: 'trial',
+          currentPeriodStart: now,
+          currentPeriodEnd: periodEnd,
+          billingCycle: billingCycle || 'monthly',
+          nextBillingDate: periodEnd,
+        },
+      }
+    }
+
+    const tenant = await db.tenant.create({
+      data: tenantCreateData,
       include: {
         users: true,
         subscription: {
           include: { plan: true },
         },
+        settings: true,
       },
     })
 
@@ -107,14 +113,14 @@ export async function POST(request: NextRequest) {
     const { passwordHash: _, ...userWithoutPassword } = adminUser
 
     // Issue JWT tokens
-    const refreshToken = signRefreshToken(adminUser.id, tenant.id)
+    const refreshToken = await signRefreshToken(adminUser.id, tenant.id)
     const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     await db.refreshToken.create({
       data: { token: refreshToken, userId: adminUser.id, tenantId: tenant.id, expiresAt: refreshExpiry },
     })
 
     const jwtPayload: JwtPayload = { userId: adminUser.id, tenantId: tenant.id, email: adminUser.email, role: adminUser.role }
-    const accessToken = signAccessToken(jwtPayload)
+    const accessToken = await signAccessToken(jwtPayload)
 
     return NextResponse.json(
       {

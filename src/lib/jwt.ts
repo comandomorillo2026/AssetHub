@@ -1,4 +1,4 @@
-import * as jose from 'jose';
+import { SignJWT, jwtVerify } from 'jose';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is not set. The application cannot start without it.');
@@ -36,34 +36,39 @@ export interface SuperAdminJwtPayload {
   email: string;
 }
 
-export function signAccessToken(payload: JwtPayload): string {
-  return jose.signJWT(payload, secretKey, { expiresIn: parseDuration(JWT_EXPIRES_IN) });
+export async function signAccessToken(payload: JwtPayload): Promise<string> {
+  return new SignJWT({ ...payload })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setExpirationTime(parseDuration(JWT_EXPIRES_IN) + 's')
+    .sign(secretKey);
 }
 
-export function signRefreshToken(userId: string, tenantId: string): string {
-  return jose.signJWT(
-    { userId, tenantId, type: 'refresh' },
-    refreshKey,
-    { expiresIn: parseDuration(JWT_REFRESH_EXPIRES_IN) }
-  );
+export async function signRefreshToken(userId: string, tenantId: string): Promise<string> {
+  return new SignJWT({ userId, tenantId, type: 'refresh' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setExpirationTime(parseDuration(JWT_REFRESH_EXPIRES_IN) + 's')
+    .sign(refreshKey);
 }
 
-export function signSuperAdminToken(payload: SuperAdminJwtPayload): string {
-  return jose.signJWT(payload, secretKey, { expiresIn: 3600 }); // 1h
+export async function signSuperAdminToken(payload: SuperAdminJwtPayload): Promise<string> {
+  return new SignJWT({ ...payload })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setExpirationTime('1h')
+    .sign(secretKey);
 }
 
 export async function verifyAccessToken(token: string): Promise<JwtPayload> {
-  const { payload } = await jose.jwtVerify(token, secretKey);
+  const { payload } = await jwtVerify(token, secretKey);
   return payload as unknown as JwtPayload;
 }
 
 export async function verifyRefreshToken(token: string): Promise<{ userId: string; tenantId: string; type: string }> {
-  const { payload } = await jose.jwtVerify(token, refreshKey);
+  const { payload } = await jwtVerify(token, refreshKey);
   return payload as unknown as { userId: string; tenantId: string; type: string };
 }
 
 export async function verifySuperAdminToken(token: string): Promise<SuperAdminJwtPayload> {
-  const { payload } = await jose.jwtVerify(token, secretKey);
+  const { payload } = await jwtVerify(token, secretKey);
   return payload as unknown as SuperAdminJwtPayload;
 }
 

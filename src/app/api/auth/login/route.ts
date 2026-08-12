@@ -42,14 +42,14 @@ export async function POST(request: NextRequest) {
     await db.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } });
 
     // Create refresh token in DB
-    const refreshToken = signRefreshToken(user.id, tenant.id);
+    const refreshToken = await signRefreshToken(user.id, tenant.id);
     const refreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await db.refreshToken.create({
       data: { token: refreshToken, userId: user.id, tenantId: tenant.id, expiresAt: refreshExpiry },
     });
 
     const jwtPayload: JwtPayload = { userId: user.id, tenantId: tenant.id, email: user.email, role: user.role };
-    const accessToken = signAccessToken(jwtPayload);
+    const accessToken = await signAccessToken(jwtPayload);
 
     const { passwordHash: _, ...userWithoutSensitive } = user;
 
