@@ -244,7 +244,7 @@ function ScanView() {
       if (track) {
         const capabilities = track.getCapabilities?.() as { torch?: boolean } | undefined
         if (capabilities?.torch) {
-          await track.applyConstraints({ advanced: [{ torch: !flashOn }] } as MediaTrackConstraints)
+          await track.applyConstraints({ advanced: [{ torch: !flashOn }] } as unknown as MediaTrackConstraints)
           setFlashOn(!flashOn)
         }
       }

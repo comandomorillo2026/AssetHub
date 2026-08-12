@@ -32,13 +32,13 @@ export async function POST(request: NextRequest) {
     // Rotate: delete old refresh token, issue new pair
     await db.refreshToken.delete({ where: { id: stored.id } });
 
-    const newRefreshToken = signRefreshToken(stored.userId, stored.tenantId);
+    const newRefreshToken = await signRefreshToken(stored.userId, stored.tenantId);
     const newRefreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await db.refreshToken.create({
       data: { token: newRefreshToken, userId: stored.userId, tenantId: stored.tenantId, expiresAt: newRefreshExpiry },
     });
 
-    const newAccessToken = signAccessToken({
+    const newAccessToken = await signAccessToken({
       userId: stored.user.id,
       tenantId: stored.tenantId,
       email: stored.user.email,

@@ -74,8 +74,8 @@ export async function PUT(
     };
 
     // Convert date strings to Date objects
-    if (updateData.purchaseDate !== undefined) updateData.purchaseDate = updateData.purchaseDate ? new Date(updateData.purchaseDate) : null;
-    if (updateData.warrantyExpiry !== undefined) updateData.warrantyExpiry = updateData.warrantyExpiry ? new Date(updateData.warrantyExpiry) : null;
+    if (updateData.purchaseDate !== undefined) updateData.purchaseDate = updateData.purchaseDate ? new Date(updateData.purchaseDate as string) : null;
+    if (updateData.warrantyExpiry !== undefined) updateData.warrantyExpiry = updateData.warrantyExpiry ? new Date(updateData.warrantyExpiry as string) : null;
 
     // Pull optional fields not in the schema from raw body
     if (body.photo !== undefined) updateData.photo = body.photo;

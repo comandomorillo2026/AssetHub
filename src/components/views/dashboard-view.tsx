@@ -125,7 +125,8 @@ function getActionIcon(action: string) {
    Animation variants
    ────────────────────────────────────────────── */
 
-const containerVariants = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const containerVariants: any = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -133,7 +134,8 @@ const containerVariants = {
   },
 }
 
-const cardVariants = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const cardVariants: any = {
   hidden: { opacity: 0, y: 18, scale: 0.97 },
   visible: {
     opacity: 1,
