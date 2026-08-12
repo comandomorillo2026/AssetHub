@@ -6,10 +6,8 @@ const PUBLIC_PATHS = [
   '/api/auth/register',
   '/api/auth/refresh',
   '/api/admin/auth',
-  '/api/admin/quick-seed',
   '/api/qr',
   '/api/payments/webhook',
-  '/api/payments/demo-checkout',
 ];
 
 const SUPER_ADMIN_PATHS = ['/api/admin'];

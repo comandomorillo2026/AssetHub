@@ -1,7 +1,9 @@
 import * as jose from 'jose';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'zeitgeist-jwt-secret-2026-caribbean-saas-asset-hub-prod';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'zeitgeist-refresh-secret-2026-caribbean-saas';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is not set. The application cannot start without it.');
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+if (!JWT_REFRESH_SECRET) throw new Error('FATAL: JWT_REFRESH_SECRET environment variable is not set. The application cannot start without it.');
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
 const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 

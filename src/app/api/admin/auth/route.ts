@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-const db = new PrismaClient()
 import { hashPassword, comparePassword, signSuperAdminToken } from '@/lib/jwt'
 
-// This is a public endpoint for super admin login (whitelisted in middleware)
-// But we still verify credentials properly
+// Public endpoint for super admin login (whitelisted in middleware)
+// Auto-creates the super admin on first login if none exists (bootstrap)
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
@@ -12,6 +10,30 @@ export async function POST(req: NextRequest) {
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
+    }
+
+    const { db } = await import('@/lib/db')
+
+    // Bootstrap: if no super admin exists, create one with provided credentials
+    const adminCount = await db.superAdmin.count()
+    if (adminCount === 0) {
+      if (process.env.NODE_ENV === 'production') {
+        return NextResponse.json({ error: 'No admin account exists. Contact system administrator.' }, { status: 403 })
+      }
+      const newAdmin = await db.superAdmin.create({
+        data: {
+          email,
+          passwordHash: hashPassword(password),
+          name: 'Super Administrator',
+          isActive: true,
+        },
+      })
+      const token = signSuperAdminToken({ adminId: newAdmin.id, email: newAdmin.email })
+      return NextResponse.json({
+        user: { id: newAdmin.id, email: newAdmin.email, name: newAdmin.name, isActive: newAdmin.isActive },
+        accessToken: token,
+        bootstrapped: true,
+      })
     }
 
     const admin = await db.superAdmin.findUnique({ where: { email } })

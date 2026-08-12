@@ -245,10 +245,7 @@ export const syncApi = {
   pull: () => request('/api/sync'),
 }
 
-// Seed
-export const seedApi = {
-  run: () => request('/api/seed', { method: 'POST' }),
-}
+// Seed uses /api/admin/quick-seed (protected by super admin JWT)
 
 // QR Resolve
 export const qrApi = {
