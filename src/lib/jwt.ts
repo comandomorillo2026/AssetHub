@@ -1,15 +1,21 @@
 import { SignJWT, jwtVerify } from 'jose';
+import bcrypt from 'bcryptjs';
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is not set. The application cannot start without it.');
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
-if (!JWT_REFRESH_SECRET) throw new Error('FATAL: JWT_REFRESH_SECRET environment variable is not set. The application cannot start without it.');
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
-const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+function getJwtSecret(): Uint8Array {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('FATAL: JWT_SECRET environment variable is not set.');
+  return new TextEncoder().encode(secret);
+}
+
+function getRefreshSecret(): Uint8Array {
+  const secret = process.env.JWT_REFRESH_SECRET;
+  if (!secret) throw new Error('FATAL: JWT_REFRESH_SECRET environment variable is not set.');
+  return new TextEncoder().encode(secret);
+}
 
 function parseDuration(dur: string): number {
   const match = dur.match(/^(\d+)([smhd])$/);
-  if (!match) return 900; // default 15m
+  if (!match) return 900;
   const val = parseInt(match[1]);
   const unit = match[2];
   switch (unit) {
@@ -20,9 +26,6 @@ function parseDuration(dur: string): number {
     default: return 900;
   }
 }
-
-const secretKey = new TextEncoder().encode(JWT_SECRET);
-const refreshKey = new TextEncoder().encode(JWT_REFRESH_SECRET);
 
 export interface JwtPayload {
   userId: string;
@@ -37,47 +40,47 @@ export interface SuperAdminJwtPayload {
 }
 
 export async function signAccessToken(payload: JwtPayload): Promise<string> {
+  const expiresIn = process.env.JWT_EXPIRES_IN || '15m';
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
-    .setExpirationTime(parseDuration(JWT_EXPIRES_IN) + 's')
-    .sign(secretKey);
+    .setExpirationTime(parseDuration(expiresIn) + 's')
+    .sign(getJwtSecret());
 }
 
 export async function signRefreshToken(userId: string, tenantId: string): Promise<string> {
+  const expiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
   return new SignJWT({ userId, tenantId, type: 'refresh' })
     .setProtectedHeader({ alg: 'HS256' })
-    .setExpirationTime(parseDuration(JWT_REFRESH_EXPIRES_IN) + 's')
-    .sign(refreshKey);
+    .setExpirationTime(parseDuration(expiresIn) + 's')
+    .sign(getRefreshSecret());
 }
 
 export async function signSuperAdminToken(payload: SuperAdminJwtPayload): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setExpirationTime('1h')
-    .sign(secretKey);
+    .sign(getJwtSecret());
 }
 
 export async function verifyAccessToken(token: string): Promise<JwtPayload> {
-  const { payload } = await jwtVerify(token, secretKey);
+  const { payload } = await jwtVerify(token, getJwtSecret());
   return payload as unknown as JwtPayload;
 }
 
 export async function verifyRefreshToken(token: string): Promise<{ userId: string; tenantId: string; type: string }> {
-  const { payload } = await jwtVerify(token, refreshKey);
+  const { payload } = await jwtVerify(token, getRefreshSecret());
   return payload as unknown as { userId: string; tenantId: string; type: string };
 }
 
 export async function verifySuperAdminToken(token: string): Promise<SuperAdminJwtPayload> {
-  const { payload } = await jwtVerify(token, secretKey);
+  const { payload } = await jwtVerify(token, getJwtSecret());
   return payload as unknown as SuperAdminJwtPayload;
 }
 
 export async function hashPassword(password: string): Promise<string> {
-  const bcrypt = require('bcryptjs');
   return bcrypt.hash(password, 12);
 }
 
 export async function comparePassword(password: string, hash: string): Promise<boolean> {
-  const bcrypt = require('bcryptjs');
   return bcrypt.compare(password, hash);
 }

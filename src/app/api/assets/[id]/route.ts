@@ -97,8 +97,6 @@ export async function PUT(
       action: 'asset_updated',
       details: `Updated asset "${existing.name}" (${existing.tagNumber}) — changed: ${changedFields}`,
       assetId: id,
-      entityType: 'asset',
-      entityId: id,
     });
 
     return NextResponse.json({ data: asset });
@@ -147,8 +145,6 @@ export async function DELETE(
       action: 'asset_deleted',
       details: `Deleted asset "${existing.name}" (${existing.tagNumber})`,
       assetId: id,
-      entityType: 'asset',
-      entityId: id,
     });
 
     return NextResponse.json({ message: 'Asset deleted successfully' });

@@ -130,8 +130,6 @@ export async function POST(request: NextRequest) {
       action: 'asset_created',
       details: `Created asset "${name}" (tag: ${tagNumber || `TAG-${timestamp}`})`,
       assetId: asset.id,
-      entityType: 'asset',
-      entityId: asset.id,
     });
 
     return NextResponse.json({ data: asset }, { status: 201 });

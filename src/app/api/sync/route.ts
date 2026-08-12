@@ -14,7 +14,7 @@ const INVENTORY_ITEM_ALLOWED_FIELDS = [
 ];
 
 const AUDIT_LOG_ALLOWED_FIELDS = [
-  'action', 'details', 'userId', 'entityType', 'entityId',
+  'action', 'details', 'userId',
 ];
 
 function stripPayload(payload: Record<string, unknown>, allowedFields: string[]): Record<string, unknown> {
