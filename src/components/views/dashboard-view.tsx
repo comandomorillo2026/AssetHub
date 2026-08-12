@@ -31,6 +31,9 @@ import {
   Settings,
   Activity,
   ArrowRightLeft,
+  ShieldAlert,
+  XCircle,
+  Clock,
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -40,7 +43,7 @@ import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 import { useAppStore, type DashboardStats } from '@/lib/store'
-import { reportsApi, settingsApi } from '@/lib/api'
+import { reportsApi, settingsApi, warrantyAlertsApi } from '@/lib/api'
 
 /* ──────────────────────────────────────────────
    Helpers
@@ -311,7 +314,17 @@ export default function DashboardView() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [currency, setCurrency] = useState<string>('TTD')
+  const [warrantyExpiring, setWarrantyExpiring] = useState<Array<{
+    id: string; name: string; tagNumber: string; warrantyExpiry: string; daysUntilExpiry: number
+    categoryName: string | null; locationName: string | null
+  }>>([])
+  const [warrantyExpired, setWarrantyExpired] = useState<Array<{
+    id: string; name: string; tagNumber: string; warrantyExpiry: string; daysUntilExpiry: number
+    categoryName: string | null; locationName: string | null
+  }>>([])
   const refreshKey = useAppStore((s) => s.refreshKey)
+  const navigate = useAppStore((s) => s.navigate)
+  const setSelectedAssetId = useAppStore((s) => s.setSelectedAssetId)
   const userTenantCurrency = useAppStore((s) => s.user?.tenant?.currency)
 
   useEffect(() => {
@@ -341,9 +354,20 @@ export default function DashboardView() {
     }
   }, [])
 
+  const fetchWarrantyAlerts = useCallback(async () => {
+    try {
+      const data = await warrantyAlertsApi.list(30) as { expiring: typeof warrantyExpiring; expired: typeof warrantyExpired }
+      setWarrantyExpiring(data.expiring || [])
+      setWarrantyExpired(data.expired || [])
+    } catch {
+      // silently fail — warranty alerts are non-critical
+    }
+  }, [])
+
   useEffect(() => {
     fetchDashboard()
-  }, [fetchDashboard, refreshKey])
+    fetchWarrantyAlerts()
+  }, [fetchDashboard, fetchWarrantyAlerts, refreshKey])
 
   // Prepare chart data
   const statusData = (stats?.byStatus ?? []).map((s) => ({
@@ -553,6 +577,73 @@ export default function DashboardView() {
           </motion.div>
         )}
       </div>
+
+      {/* ─── Warranty Alerts ─── */}
+      {!loading && (warrantyExpiring.length > 0 || warrantyExpired.length > 0) && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.55 }}
+        >
+          <Card className="border-amber-200 dark:border-amber-900/50 bg-gradient-to-r from-amber-50/50 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                <ShieldAlert className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                Warranty Alerts
+                <Badge variant="destructive" className="ml-1 tabular-nums">
+                  {warrantyExpired.length} expired
+                </Badge>
+                {warrantyExpiring.length > 0 && (
+                  <Badge className="ml-1 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 tabular-nums">
+                    {warrantyExpiring.length} expiring soon
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="max-h-[200px]">
+                <div className="space-y-2">
+                  {warrantyExpired.slice(0, 5).map((w) => (
+                    <button
+                      key={w.id}
+                      onClick={() => { setSelectedAssetId(w.id); navigate('asset-detail') }}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                    >
+                      <XCircle className="h-4 w-4 shrink-0 text-red-500" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{w.name}</p>
+                        <p className="text-xs text-muted-foreground">{w.tagNumber}{w.categoryName ? ` · ${w.categoryName}` : ''}</p>
+                      </div>
+                      <Badge variant="destructive" className="shrink-0 text-[10px]">Expired</Badge>
+                    </button>
+                  ))}
+                  {warrantyExpiring.slice(0, 5).map((w) => (
+                    <button
+                      key={w.id}
+                      onClick={() => { setSelectedAssetId(w.id); navigate('asset-detail') }}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+                    >
+                      <Clock className="h-4 w-4 shrink-0 text-amber-500" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{w.name}</p>
+                        <p className="text-xs text-muted-foreground">{w.tagNumber}{w.locationName ? ` · ${w.locationName}` : ''}</p>
+                      </div>
+                      <Badge className="shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 text-[10px] tabular-nums">
+                        {w.daysUntilExpiry}d left
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+              {(warrantyExpired.length > 5 || warrantyExpiring.length > 5) && (
+                <p className="mt-2 border-t pt-2 text-xs text-muted-foreground text-center">
+                  Showing top alerts. View all assets for complete warranty status.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* ─── Bottom Row ─── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">

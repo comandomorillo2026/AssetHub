@@ -211,34 +211,34 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
         </Button>
 
         {showNotifications && (
-          <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
-              <h3 className="font-semibold text-sm text-slate-900">Notifications</h3>
+          <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-popover rounded-xl shadow-xl border border-border z-50 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50">
+              <h3 className="font-semibold text-sm text-popover-foreground">Notifications</h3>
               <div className="flex items-center gap-2">
                 {unreadCount > 0 && (
                   <button onClick={handleMarkAllRead} className="text-xs text-[#0f766e] hover:underline font-medium">Mark all read</button>
                 )}
-                <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-600">
+                <button onClick={() => setShowNotifications(false)} className="text-muted-foreground hover:text-popover-foreground">
                   <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
             <ScrollArea className="max-h-80">
               {notifications.length === 0 ? (
-                <div className="py-8 text-center text-sm text-slate-400">No notifications yet</div>
+                <div className="py-8 text-center text-sm text-muted-foreground">No notifications yet</div>
               ) : (
                 notifications.map((n) => (
                   <button
                     key={n.id}
-                    className={`w-full text-left px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors ${!n.isRead ? 'bg-teal-50/40' : ''}`}
+                    className={`w-full text-left px-4 py-3 border-b border-border hover:bg-muted/50 transition-colors ${!n.isRead ? 'bg-teal-50/40 dark:bg-teal-900/20' : ''}`}
                     onClick={() => handleMarkRead(n.id)}
                   >
                     <div className="flex items-start gap-2.5">
                       <span className="text-base mt-0.5">{getNotifIcon(n.type)}</span>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm ${!n.isRead ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>{n.title}</p>
-                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
-                        <p className="text-[10px] text-slate-400 mt-1">{formatTimeAgo(n.createdAt)}</p>
+                        <p className={`text-sm ${!n.isRead ? 'font-semibold text-popover-foreground' : 'text-popover-foreground/80'}`}>{n.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">{formatTimeAgo(n.createdAt)}</p>
                       </div>
                       {!n.isRead && <div className="w-2 h-2 rounded-full bg-[#0f766e] mt-1.5 flex-shrink-0" />}
                     </div>
@@ -246,7 +246,7 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
                 ))
               )}
             </ScrollArea>
-            <div className="px-4 py-2 border-t border-slate-100 bg-slate-50">
+            <div className="px-4 py-2 border-t border-border bg-muted/50">
               <button onClick={() => { navigate('notifications'); setShowNotifications(false) }} className="text-xs text-[#0f766e] hover:underline font-medium w-full text-center">View all notifications</button>
             </div>
           </div>
