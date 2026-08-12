@@ -15,10 +15,14 @@ import AssetsView from '@/components/views/assets-view'
 import InventoryView from '@/components/views/inventory-view'
 import SettingsView from '@/components/views/settings-view'
 import MaintenanceView from '@/components/views/maintenance-view'
+import WorkOrdersView from '@/components/views/work-orders-view'
+import CheckoutsView from '@/components/views/checkouts-view'
 import NotificationsView from '@/components/views/notifications-view'
 import AiAssistantView from '@/components/views/ai-assistant-view'
 import MigrationView from '@/components/views/migration-view'
 import ReportsView from '@/components/views/reports-view'
+import UsersView from '@/components/views/users-view'
+import SearchView from '@/components/views/search-view'
 
 function AppLayout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
@@ -40,12 +44,19 @@ function AppLayout() {
       case 'reports':
         return <ReportsView />
       case 'settings':
-      case 'users':
         return <SettingsView />
+      case 'users':
+        return <UsersView />
+      case 'search':
+        return <SearchView />
       case 'notifications':
         return <NotificationsView />
       case 'maintenance':
         return <MaintenanceView />
+      case 'work-orders':
+        return <WorkOrdersView />
+      case 'checkouts':
+        return <CheckoutsView />
       case 'ai-assistant':
         return <AiAssistantView />
       case 'migration':

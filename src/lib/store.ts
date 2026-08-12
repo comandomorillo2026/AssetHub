@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type View = 'login' | 'register' | 'register-wizard' | 'dashboard' | 'assets' | 'asset-detail' | 'add-asset' | 'edit-asset' | 'scan' | 'inventory' | 'inventory-detail' | 'reports' | 'settings' | 'users' | 'super-admin' | 'admin-tenant-detail' | 'portal' | 'notifications' | 'maintenance' | 'ai-assistant' | 'migration'
+export type View = 'login' | 'register' | 'register-wizard' | 'dashboard' | 'assets' | 'asset-detail' | 'add-asset' | 'edit-asset' | 'scan' | 'inventory' | 'inventory-detail' | 'reports' | 'settings' | 'users' | 'super-admin' | 'admin-tenant-detail' | 'portal' | 'notifications' | 'maintenance' | 'work-orders' | 'checkouts' | 'ai-assistant' | 'migration' | 'search'
 
 export interface SuperAdmin {
   id: string
@@ -228,6 +228,10 @@ interface AppState {
   // Refresh triggers
   refreshKey: number
   triggerRefresh: () => void
+
+  // Search
+  searchQuery: string
+  setSearchQuery: (query: string) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -296,4 +300,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   refreshKey: 0,
   triggerRefresh: () => set((s) => ({ refreshKey: s.refreshKey + 1 })),
+
+  searchQuery: '',
+  setSearchQuery: (query) => set({ searchQuery: query }),
 }))

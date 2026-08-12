@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Menu, Search, Wifi, WifiOff, RefreshCw, Bell, X, Bot, Wrench, Upload } from 'lucide-react'
+import { useTheme } from 'next-themes'
+import { Menu, Search, Wifi, WifiOff, RefreshCw, Bell, X, Bot, Wrench, Upload, Sun, Moon } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -28,8 +29,11 @@ const VIEW_TITLES: Record<View, string> = {
   users: 'Users',
   notifications: 'Notifications',
   maintenance: 'Maintenance',
+  'work-orders': 'Work Orders',
+  checkouts: 'Checkouts',
   'ai-assistant': 'AI Assistant',
   migration: 'Data Migration',
+  search: 'Search Results',
   'super-admin': 'Torre de Control',
   'admin-tenant-detail': 'Tenant Details',
 }
@@ -58,6 +62,7 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
   const pendingSyncCount = useAppStore((s) => s.pendingSyncCount)
   const navigate = useAppStore((s) => s.navigate)
   const triggerRefresh = useAppStore((s) => s.triggerRefresh)
+  const { theme, setTheme } = useTheme()
 
   const [unreadCount, setUnreadCount] = useState(0)
   const [showNotifications, setShowNotifications] = useState(false)
@@ -106,6 +111,16 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
 
   const pageTitle = VIEW_TITLES[currentView] || 'Dashboard'
 
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      const query = (e.target as HTMLInputElement).value.trim()
+      if (query.length >= 2) {
+        useAppStore.getState().setSearchQuery(query)
+        navigate('search')
+      }
+    }
+  }
+
   function getSyncContent() {
     if (!isOnline) {
       return (
@@ -153,12 +168,12 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
   }
 
   return (
-    <header className="sticky top-0 z-20 flex items-center gap-3 px-4 sm:px-6 h-14 bg-white/80 backdrop-blur-md border-b border-slate-200/80">
+    <header className="sticky top-0 z-20 flex items-center gap-3 px-4 sm:px-6 h-14 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-700/80">
       <button onClick={onMenuClick} className="lg:hidden inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors -ml-1" aria-label="Menu">
         <Menu className="w-5 h-5" />
       </button>
 
-      <h1 className="text-base font-semibold text-slate-900 truncate">{pageTitle}</h1>
+      <h1 className="text-base font-semibold text-slate-900 dark:text-slate-100 truncate">{pageTitle}</h1>
       <div className="flex-1" />
 
       {/* Quick action buttons - desktop only */}
@@ -177,7 +192,7 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
       {/* Search */}
       <div className="hidden md:flex items-center relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <Input placeholder="Search assets..." className="h-9 w-56 lg:w-64 bg-slate-50 border-slate-200 pl-8 text-sm focus:w-72 lg:focus:w-80 transition-all duration-200 focus:border-[#0f766e] focus:ring-[#0f766e]/20" readOnly />
+        <Input placeholder="Search assets..." className="h-9 w-56 lg:w-64 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 pl-8 text-sm focus:w-72 lg:focus:w-80 transition-all duration-200 focus:border-[#0f766e] focus:ring-[#0f766e]/20" onKeyDown={handleSearchKeyDown} />
       </div>
 
       {/* Sync Status */}
@@ -237,8 +252,13 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
         )}
       </div>
 
+      {/* Theme Toggle */}
+      <Button variant="ghost" size="icon" className="h-9 w-9 p-0 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
+        {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+      </Button>
+
       {/* User Avatar */}
-      <Avatar className="h-8 w-8 border-2 border-slate-200">
+      <Avatar className="h-8 w-8 border-2 border-slate-200 dark:border-slate-700">
         <AvatarFallback className="bg-[#0f766e]/10 text-[#0f766e] text-xs font-semibold">
           {user ? getInitials(user.name) : '?'}
         </AvatarFallback>

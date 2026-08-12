@@ -29,10 +29,20 @@ import {
   Activity,
   Clock,
   AlertTriangle,
+  Loader2,
+  Plus as PlusIcon,
+  Edit as EditIcon,
+  Wrench as WrenchIcon,
+  ClipboardCheck as ClipboardCheckIcon,
+  TrendingDown,
+  FileText as FileTextIcon,
+  LogOut,
+  LogIn,
+  ClipboardList as ClipboardListIcon,
 } from 'lucide-react'
 
 import { useAppStore, type Asset, type Category, type Location } from '@/lib/store'
-import { assetsApi, categoriesApi, locationsApi } from '@/lib/api'
+import { assetsApi, categoriesApi, locationsApi, assetTimelineApi } from '@/lib/api'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -521,6 +531,185 @@ function AssetsListView() {
 // ASSET DETAIL VIEW
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ─── Timeline Types & Config ────────────────────────────────────────────
+
+interface TimelineEntry {
+  id: string
+  type: string
+  title: string
+  description?: string
+  metadata?: Record<string, unknown>
+  userId?: string
+  userName?: string
+  createdAt: string
+}
+
+const TIMELINE_CONFIG: Record<string, { icon: React.ElementType; color: string }> = {
+  created: { icon: PlusIcon, color: 'bg-emerald-500 text-white' },
+  updated: { icon: EditIcon, color: 'bg-blue-500 text-white' },
+  maintenance: { icon: WrenchIcon, color: 'bg-orange-500 text-white' },
+  inventory: { icon: ClipboardCheckIcon, color: 'bg-purple-500 text-white' },
+  depreciation: { icon: TrendingDown, color: 'bg-red-500 text-white' },
+  document: { icon: FileTextIcon, color: 'bg-gray-500 text-white' },
+  checkout: { icon: LogOut, color: 'bg-amber-500 text-white' },
+  checkin: { icon: LogIn, color: 'bg-emerald-500 text-white' },
+  work_order: { icon: ClipboardListIcon, color: 'bg-blue-500 text-white' },
+}
+
+function formatTimelineDate(date: string): string {
+  return new Date(date).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function AssetTimelineSection({ assetId }: { assetId: string }) {
+  const [entries, setEntries] = useState<TimelineEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const offsetRef = useState(0)
+  const limit = 20
+
+  const fetchTimeline = useCallback(async (append = false) => {
+    const offset = append ? offsetRef[0] : 0
+    if (append) {
+      setLoadingMore(true)
+    } else {
+      setLoading(true)
+    }
+    try {
+      const data = await assetTimelineApi.get(assetId, limit, offset)
+      const items: TimelineEntry[] = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
+      if (append) {
+        setEntries((prev) => [...prev, ...items])
+      } else {
+        setEntries(items)
+      }
+      offsetRef[0] = offset + items.length
+      setHasMore(items.length === limit)
+    } catch {
+      toast.error('Failed to load timeline')
+    } finally {
+      setLoading(false)
+      setLoadingMore(false)
+    }
+  }, [assetId])
+
+  useEffect(() => { fetchTimeline() }, [fetchTimeline])
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="size-5 text-muted-foreground" />
+            Timeline
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex gap-4">
+              <Skeleton className="size-9 rounded-full shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-64" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Activity className="size-5 text-muted-foreground" />
+          Timeline
+          {entries.length > 0 && (
+            <Badge variant="secondary" className="text-xs font-medium tabular-nums ml-1">
+              {entries.length}
+            </Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {entries.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
+            <Clock className="size-10" />
+            <p className="text-sm font-medium">No timeline entries yet</p>
+            <p className="text-xs">Activity for this asset will appear here</p>
+          </div>
+        ) : (
+          <>
+            <div className="relative space-y-0">
+              {entries.map((entry, idx) => {
+                const config = TIMELINE_CONFIG[entry.type] ?? { icon: Clock, color: 'bg-gray-400 text-white' }
+                const Icon = config.icon
+                return (
+                  <div key={entry.id} className="relative flex gap-4 pb-6 last:pb-0">
+                    {/* Timeline line + icon */}
+                    <div className="flex flex-col items-center">
+                      <div className={`flex items-center justify-center size-9 rounded-full shrink-0 z-10 ${config.color}`}>
+                        <Icon className="size-4" />
+                      </div>
+                      {idx < entries.length - 1 && (
+                        <div className="w-px flex-1 bg-border" />
+                      )}
+                    </div>
+                    {/* Content */}
+                    <div className="flex-1 min-w-0 pt-0.5">
+                      <p className="text-sm font-medium">{entry.title}</p>
+                      {entry.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{entry.description}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {entry.userName ?? 'System'} &middot; {formatTimelineDate(entry.createdAt)}
+                      </p>
+                      {/* Metadata card */}
+                      {entry.metadata && Object.keys(entry.metadata).length > 0 && (
+                        <div className="mt-2 rounded-md border bg-muted/30 p-2.5">
+                          <div className="grid gap-1 text-xs sm:grid-cols-2">
+                            {Object.entries(entry.metadata).map(([key, value]) => (
+                              <div key={key}>
+                                <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}: </span>
+                                <span className="font-medium">{String(value)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {hasMore && (
+              <div className="mt-4 flex justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchTimeline(true)}
+                  disabled={loadingMore}
+                >
+                  {loadingMore && <Loader2 className="size-4 mr-2 animate-spin" />}
+                  Load More
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function AssetDetailView() {
   const { selectedAssetId, goBack, navigate, setSelectedAssetId, triggerRefresh } = useAppStore()
 
@@ -734,6 +923,9 @@ function AssetDetailView() {
           </CardContent>
         </Card>
       )}
+
+      {/* Timeline */}
+      <AssetTimelineSection assetId={asset.id} />
 
       {/* Delete Dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>

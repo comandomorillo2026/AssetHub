@@ -66,6 +66,29 @@ export async function GET(request: NextRequest) {
           where: { tenantId, status: 'in_progress' },
         });
 
+        const [categoryCurrentValues, categoryFallbackValues] = await Promise.all([
+          db.asset.groupBy({
+            by: ['categoryId'],
+            where: { tenantId, currentValue: { not: null } },
+            _sum: { currentValue: true },
+          }),
+          db.asset.groupBy({
+            by: ['categoryId'],
+            where: { tenantId, currentValue: null },
+            _sum: { purchasePrice: true },
+          }),
+        ]);
+
+        const categoryValueMap = new Map<string, number>();
+        for (const row of categoryCurrentValues) {
+          const id = row.categoryId!;
+          categoryValueMap.set(id, (categoryValueMap.get(id) || 0) + (row._sum.currentValue || 0));
+        }
+        for (const row of categoryFallbackValues) {
+          const id = row.categoryId!;
+          categoryValueMap.set(id, (categoryValueMap.get(id) || 0) + (row._sum.purchasePrice || 0));
+        }
+
         return NextResponse.json({
           totalAssets,
           activeAssets,
@@ -79,7 +102,7 @@ export async function GET(request: NextRequest) {
           byCategory: categories.map((c) => ({
             category: c.name,
             count: c._count.assets,
-            value: 0,
+            value: categoryValueMap.get(c.id) || 0,
           })),
           byLocation: locations.map((l) => ({
             location: l.name,
