@@ -40,8 +40,10 @@ const PIE_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
 
 // ─── Admin Login View ───
 function AdminLoginView() {
-  const [email, setEmail] = useState('admin@zeitgeist.co')
-  const [password, setPassword] = useState('super2024')
+  // SECURITY: never prefill admin credentials — they were shipping to every
+  // browser bundle. Real credentials live only in the SuperAdmin table (bcrypt).
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const setSuperAuth = useAppStore((s) => s.setSuperAuth)
