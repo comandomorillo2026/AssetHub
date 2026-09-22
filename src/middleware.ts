@@ -8,6 +8,7 @@ const PUBLIC_PATHS = [
   '/api/admin/auth',
   '/api/qr',
   '/api/payments/webhook',
+  '/api/health',
 ];
 
 const SUPER_ADMIN_PATHS = ['/api/admin'];
