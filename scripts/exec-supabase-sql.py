@@ -1,7 +1,13 @@
+import os
 import psycopg2
 import sys
 
-DB_URL = "postgresql://postgres:ld6LfzAkiY6hvhDU@db.pnsdsqihlwecvxhhddfm.supabase.co:5432/postgres"
+# La URL de conexion JAMAIS se hardcodea aqui (repo publico).
+# Exportala antes de usar este script:
+#   export DATABASE_URL="postgresql://postgres:<PASSWORD>@db.<REF>.supabase.co:5432/postgres"
+DB_URL = os.environ.get("DATABASE_URL")
+if not DB_URL:
+    sys.exit("ERROR: exporta DATABASE_URL en el entorno antes de ejecutar este script.")
 SQL_FILE = "/home/z/my-project/download/assethub-supabase-schema.sql"
 
 print("Conectando a Supabase...")

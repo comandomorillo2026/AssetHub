@@ -14,7 +14,7 @@ datasource db {
 ### 2. Set your DATABASE_URL in Vercel:
 
 ```
-postgresql://user:password@host:5432/database?schema=public
+postgresql://postgres:[YOUR-SUPABASE-PASSWORD]@db.pnsdsqihlwecvxhhddfm.supabase.co:5432/postgres
 ```
 
 Recommended PostgreSQL providers:
