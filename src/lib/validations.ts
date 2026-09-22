@@ -38,12 +38,17 @@ export const assetCreateSchema = z.object({
   status: z.enum(['active', 'inactive', 'in_repair', 'disposed', 'lost', 'pending', 'checked_out']).optional().default('active'),
   condition: z.enum(['new', 'good', 'fair', 'poor', 'damaged']).optional().default('new'),
   assignedTo: z.string().max(200).optional(),
-  purchaseDate: z.string().datetime().or(z.date()).optional(),
+  // QA FIX (2026-09-22): the client form sends date-only strings (YYYY-MM-DD) —
+  // z.string().datetime() rejected them, so any purchase date broke creation.
+  purchaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date').or(z.string().datetime()).or(z.date()).optional(),
   purchasePrice: z.number().min(0).optional(),
   currentValue: z.number().min(0).optional(),
-  warrantyExpiry: z.string().datetime().or(z.date()).optional(),
-  categoryId: z.string().min(1, 'Category is required'),
-  locationId: z.string().min(1, 'Location is required'),
+  warrantyExpiry: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date').or(z.string().datetime()).or(z.date()).optional(),
+  // QA FIX (2026-09-22): these were required while a freshly-registered tenant has
+  // zero categories/locations — the Add Asset form could never succeed for a new
+  // customer. The Asset table columns are nullable (String?), so optional here.
+  categoryId: z.string().min(1, 'Category is required').optional(),
+  locationId: z.string().min(1, 'Location is required').optional(),
   notes: z.string().max(5000).optional(),
 });
 
