@@ -7,11 +7,15 @@ export const loginSchema = z.object({
 
 export const registerSchema = z.object({
   tenantName: z.string().min(2, 'Tenant name is required').max(100),
-  tenantType: z.enum(['government', 'corporate', 'nonprofit', 'education', 'healthcare']),
-  contactName: z.string().min(2, 'Contact name is required'),
-  contactEmail: z.string().email('Invalid email'),
+  // QA FIX (2026-09-22): registration wizard offers government/private/education/insurance/credit_union
+  // while this enum only accepted government/corporate/nonprofit/education/healthcare — signup 400'd for
+  // 3 of 5 org types. Enum expanded additively (DB column is free-form String, default 'private').
+  tenantType: z.enum(['government', 'corporate', 'nonprofit', 'education', 'healthcare', 'private', 'insurance', 'credit_union']),
+  // Route stores contactName = user.name and contactEmail = user.email regardless, so these inputs are optional.
+  contactName: z.string().min(2).optional(),
+  contactEmail: z.string().email().optional(),
   contactPhone: z.string().min(7, 'Phone number is required'),
-  country: z.string().min(2, 'Country is required'),
+  country: z.string().min(2).optional(),
   name: z.string().min(2, 'Name is required'),
   email: z.string().email('Invalid email'),
   password: z
