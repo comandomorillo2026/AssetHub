@@ -82,6 +82,25 @@ export async function POST(request: NextRequest) {
         },
       },
       settings: { create: {} },
+      // QA FIX (2026-09-22): seed standard categories + a main location so a new
+      // tenant can create assets immediately (Add Asset was dead-on-arrival for
+      // fresh tenants with empty dropdowns).
+      categories: {
+        create: [
+          { name: 'IT Equipment', code: 'IT', color: '#6366f1', icon: 'Laptop' },
+          { name: 'Vehicles', code: 'VEH', color: '#f59e0b', icon: 'Car' },
+          { name: 'Furniture', code: 'FUR', color: '#10b981', icon: 'Sofa' },
+          { name: 'Office Equipment', code: 'OFF', color: '#0ea5e9', icon: 'Printer' },
+          { name: 'Tools & Machinery', code: 'TOL', color: '#ef4444', icon: 'Wrench' },
+          { name: 'Electronics', code: 'ELE', color: '#8b5cf6', icon: 'Smartphone' },
+          { name: 'Other', code: 'OTH', color: '#64748b', icon: 'Package' },
+        ],
+      },
+      locations: {
+        create: [
+          { name: 'Main Office', code: 'MAIN' },
+        ],
+      },
     }
 
     // Add subscription only if we have a plan
